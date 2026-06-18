@@ -266,8 +266,10 @@ if _kb_router_mod is not None and hasattr(_kb_router_mod, "router"):
 
 # ---------------------------------------------------------------------------
 # Web Demo 静态页（最小验证页，不含业务）
+# 可通过 WEB_DEMO_DIR 环境变量指向自定义 Demo 目录（如路径 A 产物目录）
+# 未设置时默认使用 conversation-core 自带的 web-demo 自检页
 # ---------------------------------------------------------------------------
-_DEMO_DIR = _BASE_DIR / "web-demo"
+_DEMO_DIR = Path(os.getenv("WEB_DEMO_DIR", str(_BASE_DIR / "web-demo")))
 if _DEMO_DIR.exists():
     app.mount(
         "/static",
