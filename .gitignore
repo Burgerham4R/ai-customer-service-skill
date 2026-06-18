@@ -1,0 +1,22 @@
+# 安全提示
+.env
+.env.local
+.env.*.local
+.credentials_cache
+config-report.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store

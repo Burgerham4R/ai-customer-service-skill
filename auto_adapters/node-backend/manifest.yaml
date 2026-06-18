@@ -1,0 +1,47 @@
+name: "node-backend"
+version: "1.0.0"
+target_role: "backend"
+tech_stack: ["express", "koa", "fastify"]
+description: "Node.js 后端反向代理：把 ${ROUTE_PREFIX}/* 透传到骨架 ${SKELETON_BASE_URL}${API_PREFIX}/*"
+
+templates:
+  express:
+    file: "express.js.tpl"
+    target_path: "routes/voice-agent.js"
+    install_hint: |
+      在 Express 应用中：
+        const voiceAgent = require('./routes/voice-agent');
+        app.use('${ROUTE_PREFIX}', voiceAgent);
+    package_dependencies:
+      - "express@^4.17.0"
+      - "node-fetch@^3.3.0"
+  koa:
+    file: "koa.js.tpl"
+    target_path: "routes/voice-agent.js"
+    install_hint: |
+      在 Koa 应用中：
+        const Router = require('@koa/router');
+        const proxy = require('./routes/voice-agent');
+        app.use(proxy.routes()).use(proxy.allowedMethods());
+    package_dependencies:
+      - "@koa/router@^12.0.0"
+      - "node-fetch@^3.3.0"
+  fastify:
+    file: "fastify.js.tpl"
+    target_path: "routes/voice-agent.js"
+    install_hint: |
+      在 Fastify 应用中：
+        const voiceAgent = require('./routes/voice-agent');
+        fastify.register(voiceAgent, { prefix: '${ROUTE_PREFIX}' });
+    package_dependencies:
+      - "fastify@^4.0.0"
+      - "node-fetch@^3.3.0"
+
+defaults:
+  SKELETON_BASE_URL: "http://localhost:3000"
+  API_PREFIX: "/api/v1"
+  ROUTE_PREFIX: "/voice-agent"
+
+security:
+  https_required: true
+  forbid_internal_ip: true   # 反代目标默认禁止指向内网（10/192.168/172.16-31/9/11/21/30 段）

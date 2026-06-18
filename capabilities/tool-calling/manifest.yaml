@@ -1,0 +1,146 @@
+# tool-calling 能力包自描述清单
+# 类型: capability（可选安装）
+# 风险缓解：P1 α/β 双轨制优先级仲裁（manifest 显式声明 priority）
+
+name: "tool-calling"
+version: "1.0.0"
+type: "capability"
+description: "业务工具调用 - α/β 双轨制（本地函数优先，远程 API 兜底）+ 结果回注"
+
+dependencies:
+  - name: "conversation-core"
+    version: ">=1.0.0,<2.0.0"
+
+# ---------------------------------------------------------------------------
+# 注入到骨架的扩展点
+# ---------------------------------------------------------------------------
+extensions:
+  - inject_at: "agent.before_push_text"
+    inline_code: |
+      # [tool-calling] 截获文本注入：识别 "/tool name args" 触发本地工具调用
+      from ._capability_loader import try_load_capability
+      _tc_dispatcher = try_load_capability("tool-calling", "src/dispatcher.py")
+      if _tc_dispatcher is not None:
+          _hijack = _tc_dispatcher.maybe_dispatch(text)
+          if _hijack is not None:
+              # 用工具结果替换原始文本注入，保证回注到 LLM 的内容已带工具输出
+              text = _hijack
+  - inject_at: "server.router_extension"
+    inline_code: |
+      # [tool-calling] mount sub-router
+      from ._capability_loader import try_load_capability as _try_load_capability
+      _tc_router_mod = _try_load_capability("tool-calling", "src/router.py")
+      if _tc_router_mod is not None and hasattr(_tc_router_mod, "router"):
+          app.include_router(
+              _tc_router_mod.router, prefix="/api/v1/tools", tags=["tool-calling"]
+          )
+
+# ---------------------------------------------------------------------------
+# 配置接口（α/β 双轨）
+# ---------------------------------------------------------------------------
+config:
+  priority:
+    description: "优先级仲裁规则：alpha | beta | manifest_order"
+    default: "alpha"
+  timeout_ms_alpha:
+    default: 1000
+  timeout_ms_beta:
+    default: 5000
+  retry_alpha:
+    default: 0
+  retry_beta:
+    default: 1
+  registry_file:
+    description: "工具注册声明文件（YAML），可热更新"
+    default: "capabilities/tool-calling/data/tools.yaml"
+
+# ---------------------------------------------------------------------------
+# API 端点
+# ---------------------------------------------------------------------------
+endpoints:
+  - method: GET
+    path: /api/v1/tools/list
+    description: 列出已注册的 α / β 工具及其优先级
+  - method: POST
+    path: /api/v1/tools/invoke
+    description: "显式调用工具（body 形如 {name, params, priority?}）"
+  - method: POST
+    path: /api/v1/tools/reload
+    description: "热重载注册表"
+
+# ---------------------------------------------------------------------------
+# 集成规则
+# ---------------------------------------------------------------------------
+integration:
+  mode: "auto"
+  auto_adapters:
+    - tech_stack: ["express", "koa", "fastify", "next"]
+      adapter: "node-backend"
+      description: "在 Node.js 后端注册 β 轨远程工具实现"
+    - tech_stack: ["flask", "fastapi", "django"]
+      adapter: "python-backend"
+      description: "在 Python 后端直接注册 α 轨本地函数"
+    - tech_stack: ["spring-boot", "quarkus"]
+      adapter: "java-backend"
+      description: "通过 Filter 暴露 β 轨 REST 端点"
+  fallback:
+    guided_templates:
+      - "../../auto_adapters/integration_templates/generic-backend.md"
+    manual_api:
+      rest_endpoint: "/api/v1/tools"
+
+security:
+  log_redaction:
+    enabled: true
+    patterns: ["api_key", "token", "credential", "authorization"]
+  injection_protection:
+    prompt_injection_guard: true   # 工具触发关键字进入 LLM 前白名单校验
+  network:
+    enforce_https: true            # β 轨远程调用强制 HTTPS
+
+# ---------------------------------------------------------------------------
+# 业务接口契约（Phase 3 新增；遵循 references/business-contract-spec.md v1.0 §5）
+# tool-calling 走专属契约段（α/β/arbitration），不使用 port/adapter 模板。
+# 源码本期不重构（折中策略），仅声明契约供 contract-adapt.py 消费。
+# ---------------------------------------------------------------------------
+business_contract:
+  customization_sop: "INTERFACE_ADAPT.md"
+
+  # α 轨：本地函数注册规范
+  alpha_track:
+    interface: "src.dispatcher.LocalToolHandler"          # 现有 dispatcher 中的等效抽象
+    registration_schema:
+      name: string                  # 工具名（全局唯一，snake_case）
+      description: string           # 一句话说明，给 LLM 看
+      parameters: object            # JSON Schema，描述参数
+      handler: callable             # 同步 / 异步 Python 可调用对象
+    invocation_schema:
+      input: object                 # 与 parameters 同 schema
+      output: object                # 用户自定义返回结构（必须 JSON-serializable）
+    fail_fast: true                 # 本地异常立即抛出供 arbitration 决策
+
+  # β 轨：远程业务 API 对接规范
+  beta_track:
+    interface: "src.dispatcher.RemoteToolClient"          # 远程 HTTP/RPC 客户端抽象
+    api_schema:
+      method: enum[GET, POST, PUT, DELETE, PATCH]
+      path: string
+      request_schema: object        # JSON Schema
+      response_schema: object       # JSON Schema
+      auth: enum[bearer, api_key, none]
+    timeout_ms: 5000
+    retry:
+      max: 1
+      backoff_ms: 200
+
+  # 仲裁规则
+  arbitration:
+    default_priority: alpha         # alpha | beta | manifest_order
+    fallback_on_failure: true
+    timeout_ms: 3000                # 单轨调用上限；超时即触发 fallback
+    merge_strategy: first_success   # first_success | alpha_then_beta_diff
+
+acceptance:
+  - "提供 ToolRegistry，可同时声明 α / β 实现"
+  - "默认 α 优先；α 失败 / 不可用自动降级 β"
+  - "REST 端点可在骨架启动后立即提供服务"

@@ -1,0 +1,153 @@
+# =====================================================================
+# 路径 A 默认 Recipe —— AI 客服（中性行业基调）
+#
+# 本文件由 SKILL.md 路径 A SOP 解析，**不是** add-capability.py 的输入。
+# Coding Agent 把它当作"装配指令清单"逐项执行；用户不直接跑此文件。
+#
+# 与 references/business-contract-spec.md v1.0、design_tokens.json v1.1.0 对齐。
+# =====================================================================
+apiVersion: ai-customer-service/v1
+kind: Recipe
+metadata:
+  name: customer-service-default
+  scenario: customer-service
+  version: "1.1.0"
+  description: "默认 AI 客服 Demo（Voice Agent UI + FAQ 静默检索 + 转人工进度模拟 + Mock 商品订单）"
+  industry: "neutral"            # 中性基调；具体行业由用户在启动前的"业务描述"决定
+  language: "en"                 # UI 默认英文；面向海外开发者
+
+# ---------------------------------------------------------------------------
+# 装配能力清单
+# AI 在路径 A Step 2 执行：
+#   python3 scripts/add-capability.py knowledge-base human-handoff --apply --json
+# ---------------------------------------------------------------------------
+capabilities:
+  required:
+    - name: conversation-core      # 骨架，已在仓库内，无需装配
+      role: skeleton
+  install:
+    - name: knowledge-base
+      role: capability
+      adapter: mock                # 默认走 mock，开箱即用；上线前切到 local_json / default_rest
+      env:
+        KB_ADAPTER: mock           # 与 capabilities/knowledge-base/manifest.yaml.config.adapter 对齐
+        KB_TOP_K: "3"
+        KB_MIN_SCORE: "0.1"
+    - name: human-handoff
+      role: capability
+      adapter: local_queue         # 默认走本地队列；切到 default_rest 即对接真实工单系统
+      env:
+        HH_ADAPTER: local_queue
+  optional:                        # 路径 A 默认不装；路径 B 可由用户勾选
+    - name: tool-calling
+    - name: session-summary
+  excluded:
+    - name: digital-human          # 占位能力，本期不参与
+
+# ---------------------------------------------------------------------------
+# AI 行为配置
+# ---------------------------------------------------------------------------
+agent_runtime:
+  language: "zh"                   # 默认中文；en / zh 二选一
+  voice_id: ""                     # 空 → 由 conversation-core DEFAULT_VOICE_IDS 按 language 选择
+  greeting: "您好，这里是 AI 客服。请问有什么可以帮您？"
+  max_idle_time: 60
+  system_prompt:
+    template_file: "system-prompt.template.md"
+    variables:
+      business_desc: "{{ business_desc }}"          # 由 AI 在启动前向用户追问一句填入
+      business_name: "{{ business_name | default('我们') }}"
+
+# ---------------------------------------------------------------------------
+# UI 覆盖层 —— 默认 voice-customer-service（真实 Voice Agent 客服）
+#
+# 设计取舍：
+#   `widget-floating` 是"轻量 IM 演示版"，**不**拉起 TRTC 通道；
+#   `voice-customer-service` 是真 Voice Agent UI（TRTC enterRoom + agent/start
+#   完整链路），叠加 FAQ 静默检索 + 转人工排队进度条 + 商品/订单业务面板，
+#   是路径 A 的**默认产物**；
+#   `widget-floating` / `admin-board` 仍可按需手动叠加。
+#
+# 装配步骤（AI 在 Step 2 之后、Step 3 之前执行；推荐通过 post-install-patch.py
+# 自动完成 .env 默认值写入，UI overlay 用 cp 命令）：
+#   cp scenarios/customer-service/ui/voice-customer-service/{index.html,app.js,styles.css,data.js,mock-shop.json,tokens.css} \
+#      capabilities/conversation-core/web-demo/
+#   mkdir -p capabilities/conversation-core/web-demo/admin
+#   cp -R scenarios/customer-service/ui/admin-board/. \
+#         capabilities/conversation-core/web-demo/admin/
+#
+# 启动后访问：
+#   http://localhost:3000              AI 客服 Voice Agent UI（默认）
+#   http://localhost:3000/static/admin/ 工单坐席看板
+#   http://localhost:3000/api/v1/health 三盏 LED 自检 JSON
+#   http://localhost:3000/docs         FastAPI Swagger
+# ---------------------------------------------------------------------------
+ui_overlay:
+  source_root: "scenarios/customer-service/ui"
+  target: "capabilities/conversation-core/web-demo"
+  layers:
+    - source: "voice-customer-service"
+      target: "."                  # 默认覆盖 web-demo 根
+      replace: true
+      files:                       # 显式列出（避免误覆盖 admin/ 子目录）
+        - "index.html"
+        - "app.js"
+        - "styles.css"
+        - "mock-shop.json"
+        - "tokens.css"
+    - source: "admin-board"
+      target: "admin"              # 子目录
+      replace: true
+  alternatives:
+    - name: "widget-floating"
+      description: "轻量文本 IM 浮窗演示（不启动 TRTC voice 通道）；适合接入既有网页作为右下角组件"
+      source: "widget-floating"
+  routes:
+    - path: "/"
+      description: "AI 客服 Voice Agent 主入口（用户端）"
+    - path: "/static/admin/"
+      description: "工单坐席看板（运营端；上线时建议加权限或改为 /admin/tickets 反代）"
+    - path: "/static/dev/"
+      description: "保留位（如把原 voice demo 备份到 dev/ 子目录则可访问）"
+
+# ---------------------------------------------------------------------------
+# 默认数据源（mock 演示数据；上线前替换）
+# ---------------------------------------------------------------------------
+sample_data:
+  faq_file: "sample-data/faq-sample.json"
+  description: "5 条中性行业 FAQ（退款 / 物流 / 发票 / 换码 / 售后）。Mock adapter 启动时直接灌入内存。"
+
+# ---------------------------------------------------------------------------
+# 启动后必做：契约清单提示（由 AI 在 §8 主动列出，**不是**脚本自动打印）
+# ---------------------------------------------------------------------------
+post_assembly:
+  contract_review:
+    enabled: true
+    capabilities:
+      - knowledge-base
+      - human-handoff
+    sop_section: "SKILL.md#8"
+  health_check:
+    url: "http://localhost:3000/api/v1/health"
+    expect_field: "status"
+    expect_value: "ok"
+
+# ---------------------------------------------------------------------------
+# 设计语言锁定
+# ---------------------------------------------------------------------------
+design:
+  tokens_file: "../../design_tokens.json"
+  guidelines: "ui/design-system/DESIGN_GUIDELINES.md"
+  theme: "dark"                    # 本期锁 dark
+  emoji_in_ui: false               # UI 内禁止 emoji（icon + 文字替代）
+  font_family: "SF Pro, Inter, 'Helvetica Neue', sans-serif"
+
+# ---------------------------------------------------------------------------
+# 切换到生产配置的指引（仅文档；AI 引用即可，不直接执行）
+# ---------------------------------------------------------------------------
+go_production_guide: |
+  - knowledge-base：把 KB_ADAPTER 改为 local_json 或 default_rest，并按 INTERFACE_ADAPT.md 配置
+  - human-handoff：把 HH_ADAPTER 改为 default_rest（接入真实工单系统）；
+    若工单接口与默认契约不一致，走 SKILL.md §8.3 contract-adapt 流程生成 user_custom.py
+  - 端口：默认 3000；多实例可用 PORT 环境变量
+  - HTTPS：bash start.sh --https（自签证书；正式环境建议挂反向代理换正式证书）

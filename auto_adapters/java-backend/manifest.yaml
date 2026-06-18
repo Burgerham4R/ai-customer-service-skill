@@ -1,0 +1,30 @@
+name: "java-backend"
+version: "1.0.0"
+target_role: "backend"
+tech_stack: ["spring-boot", "quarkus"]
+description: "Java 后端 Filter：把请求转发到骨架进程"
+
+templates:
+  spring-boot:
+    file: "springboot/VoiceAgentFilter.java.tpl"
+    target_path: "src/main/java/com/example/voiceagent/VoiceAgentFilter.java"
+    install_hint: |
+      Filter 已含 @Component，Spring Boot 自动扫描；
+      如需自定义路径前缀，修改 PATH_PREFIX 常量或通过 application.yml 注入。
+    package_dependencies:
+      - "org.springframework.boot:spring-boot-starter-web"
+  quarkus:
+    file: "quarkus/VoiceAgentFilter.java.tpl"
+    target_path: "src/main/java/com/example/voiceagent/VoiceAgentFilter.java"
+    install_hint: |
+      Filter 已含 @Provider；将文件放置到任意被 Quarkus 扫描的包路径下即可。
+    package_dependencies:
+      - "io.quarkus:quarkus-rest-client-reactive"
+
+defaults:
+  SKELETON_BASE_URL: "http://localhost:3000"
+  API_PREFIX: "/api/v1"
+  ROUTE_PREFIX: "/voice-agent"
+
+security:
+  https_required: true

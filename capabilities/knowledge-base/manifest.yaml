@@ -1,0 +1,211 @@
+# knowledge-base 能力包自描述清单
+# 类型: capability（可选安装）
+
+name: "knowledge-base"
+version: "1.1.0"
+type: "capability"
+description: "FAQ 检索 + 关键词匹配（Phase 3 已重构为 ports/adapters/core 三层）"
+
+# ---------------------------------------------------------------------------
+# 依赖：仅依赖通用骨架；不引入任何外部数据库
+# ---------------------------------------------------------------------------
+dependencies:
+  - name: "conversation-core"
+    version: ">=1.0.0,<2.0.0"
+
+# ---------------------------------------------------------------------------
+# 注入到骨架的扩展点（保持与 Phase 2 完全兼容；retriever.py 现为 facade）
+# ---------------------------------------------------------------------------
+extensions:
+  # 在 start_agent 之前把命中的 FAQ 拼接到 instructions
+  - inject_at: "agent.before_start"
+    inline_code: |
+      # [knowledge-base] inject FAQ context if any user keywords present
+      if config is not None and getattr(config, "instructions", None):
+          from ._capability_loader import try_load_capability
+          _kb = try_load_capability("knowledge-base", "src/retriever.py")
+          if _kb is not None:
+              try:
+                  config.instructions = _kb.attach_faq_to_instructions(config.instructions)
+              except Exception as _kb_exc:  # noqa: BLE001
+                  logger.warning("knowledge-base FAQ injection failed: %s", _kb_exc)
+  # 在 server.include_router 之后追加子路由
+  - inject_at: "server.router_extension"
+    inline_code: |
+      # [knowledge-base] mount sub-router
+      from ._capability_loader import try_load_capability as _try_load_capability
+      _kb_router_mod = _try_load_capability("knowledge-base", "src/router.py")
+      if _kb_router_mod is not None and hasattr(_kb_router_mod, "router"):
+          app.include_router(
+              _kb_router_mod.router, prefix="/api/v1/kb", tags=["knowledge-base"]
+          )
+
+# ---------------------------------------------------------------------------
+# 配置接口
+# ---------------------------------------------------------------------------
+config:
+  data_file:
+    description: "FAQ 数据文件路径（JSON），仅 local_json adapter 使用"
+    default: "capabilities/knowledge-base/data/faq.json"
+    env: "KB_DATA_FILE"
+  matcher:
+    description: "匹配策略：keyword | tfidf | hybrid（local_json adapter 默认 tfidf）"
+    default: "tfidf"
+  top_k:
+    description: "最多回填的 FAQ 条目数"
+    default: 3
+    env: "KB_TOP_K"
+  min_score:
+    description: "得分阈值；低于阈值不注入"
+    default: 0.1
+    env: "KB_MIN_SCORE"
+  adapter:
+    description: "选用哪种 KnowledgeBaseClient 实现：local_json | mock | default_rest | user_custom"
+    default: "local_json"
+    env: "KB_ADAPTER"
+
+# ---------------------------------------------------------------------------
+# API 端点
+# ---------------------------------------------------------------------------
+endpoints:
+  - method: GET
+    path: /api/v1/kb/list
+    description: 列出全部知识条目
+  - method: POST
+    path: /api/v1/kb/search
+    description: "关键词检索 FAQ（body 形如 {query, top_k?}）"
+  - method: POST
+    path: /api/v1/kb/upsert
+    description: "新增或更新条目（body 形如 {id, question, answer, keywords[]}）"
+  - method: DELETE
+    path: /api/v1/kb/{entry_id}
+    description: "删除条目"
+  - method: POST
+    path: /api/v1/kb/reload
+    description: "从外部源重载数据"
+  - method: GET
+    path: /api/v1/kb/stats
+    description: "返回 backend / 条目数 / 加载时间（Phase 3 新增）"
+
+# ---------------------------------------------------------------------------
+# 业务接口契约（Phase 3 新增；遵循 references/business-contract-spec.md v1.0）
+# ---------------------------------------------------------------------------
+business_contract:
+  port_class: "src.ports.kb_client.KnowledgeBaseClient"
+  default_adapter: "src.adapters.local_json.LocalJsonKbClient"
+  mock_adapter: "src.adapters.mock.MockKbClient"
+  customization_sop: "INTERFACE_ADAPT.md"
+  external_apis:
+    - name: faq.search
+      direction: outbound
+      method: POST
+      path: /faq/search
+      description: "向外部 FAQ 服务发起关键词检索"
+      request_schema:
+        query: string
+        top_k: int
+        min_score: float
+      response_schema:
+        hits:
+          - entry:
+              id: string
+              question: string
+              answer: string
+              keywords: string[]
+            score: float
+      adapter_slots:
+        - request.query
+        - request.top_k
+        - response.hits
+      auth:
+        type: bearer
+        location: header
+        name: Authorization
+      timeout_ms: 5000
+
+    - name: faq.list
+      direction: outbound
+      method: GET
+      path: /faq
+      description: "列出所有 FAQ 条目"
+      request_schema: {}
+      response_schema:
+        items:
+          - id: string
+            question: string
+            answer: string
+            keywords: string[]
+      adapter_slots:
+        - response.items
+      timeout_ms: 5000
+
+    - name: faq.upsert
+      direction: outbound
+      method: POST
+      path: /faq
+      description: "新增或更新 FAQ 条目"
+      request_schema:
+        id: string
+        question: string
+        answer: string
+        keywords: string[]
+      response_schema:
+        id: string
+        question: string
+        answer: string
+        keywords: string[]
+      adapter_slots:
+        - request.id
+        - request.question
+        - request.answer
+        - request.keywords
+      timeout_ms: 5000
+
+    - name: faq.delete
+      direction: outbound
+      method: DELETE
+      path: /faq/{entry_id}
+      description: "删除 FAQ 条目"
+      request_schema:
+        entry_id: string
+      response_schema:
+        deleted: string
+      adapter_slots:
+        - request.entry_id
+      timeout_ms: 3000
+
+# ---------------------------------------------------------------------------
+# 集成规则
+# ---------------------------------------------------------------------------
+integration:
+  mode: "auto"
+  auto_adapters:
+    - tech_stack: ["react", "vue", "angular"]
+      adapter: "frontend-spa"
+      description: "在 SPA 中注入一个 FAQ 编辑面板组件"
+  fallback:
+    guided_templates:
+      - "../../auto_adapters/integration_templates/generic-frontend.md"
+    manual_api:
+      rest_endpoint: "/api/v1/kb"
+      sdk_packages: []
+
+# ---------------------------------------------------------------------------
+# 安全
+# ---------------------------------------------------------------------------
+security:
+  log_redaction:
+    enabled: true
+    patterns: ["api_key", "token", "credential", "authorization"]
+  input_validation:
+    max_query_length: 256
+    forbid_html_tags: true     # 写入条目时移除 HTML，避免后续注入
+  network:
+    enforce_https: true        # default_rest adapter 强制非 localhost 的 HTTPS
+
+acceptance:
+  - "提供 keyword/tfidf 检索接口与最小实现"
+  - "API 端点可在骨架启动后立即提供服务"
+  - "instructions 注入不修改骨架文件，全靠 manifest.extensions"
+  - "切换 KB_ADAPTER 不需修改业务代码（local_json / mock / default_rest / user_custom）"
+  - "default_rest adapter 拒绝访问私网地址（除 localhost）"

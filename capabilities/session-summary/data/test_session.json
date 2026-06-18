@@ -1,0 +1,18 @@
+{
+  "session_id": "test_session",
+  "opened_at": 1780905036.267712,
+  "closed_at": null,
+  "turns": [
+    {
+      "role": "user",
+      "text": "我想查询订单 A1234，物流多久到？",
+      "ts": 1780905036.26798
+    },
+    {
+      "role": "assistant",
+      "text": "通常 3-5 个工作日。",
+      "ts": 1780905036.2682061
+    }
+  ],
+  "summary": null
+}

@@ -1,0 +1,190 @@
+{# =========================================================================
+   路径 B 自定义 Recipe 渲染模板（Jinja2）
+
+   渲染产物：<workspace>/recipe.yaml
+   渲染输入（由 AI 在 Q1~Q4 收集）：
+     business_desc       string    Q1 用户答复（必填，原文）
+     business_name       string    可选（默认 "我们"）
+     io_modality         enum      Q2 选项 → 内部枚举：
+                                     text_only | text_with_tts | omni | voice_only
+     ui_form             enum      Q3 选项 → floating | fullscreen | headless
+     extra_capabilities  list      Q4 勾选项的子集；元素取值：
+                                     knowledge-base | human-handoff | tool-calling | session-summary
+
+   AI 渲染要点：
+     - 不要把渲染逻辑下沉到 Python；推荐 AI 在脑内做字符串替换 / Jinja eval，
+       然后用 write_to_file 一次性写出最终 recipe.yaml
+     - 如某个布尔字段无法映射（用户答复模糊），先按下面的默认值兜底，并向用户确认
+========================================================================= #}
+# =====================================================================
+# 路径 B 自定义 Recipe —— {{ business_name | default("我们") }} AI 客服
+#
+# 由 SKILL.md §6 流程 + custom-builder/output-templates/recipe.yaml.j2 渲染生成
+# 渲染时间：{{ render_time | default("(由 AI 写入 ISO 时间戳)") }}
+# 渲染人：    {{ rendered_by | default("Coding Agent") }}
+# =====================================================================
+apiVersion: ai-customer-service/v1
+kind: Recipe
+metadata:
+  name: customer-service-custom
+  scenario: customer-service
+  source: custom-builder
+  version: "1.0.0"
+  description: "由路径 B 4 轮问答生成；可被人工编辑后重新装配"
+
+# ---------------------------------------------------------------------------
+# Q1：业务描述（驱动 system prompt 渲染）
+# ---------------------------------------------------------------------------
+agent_runtime:
+  language: "{{ language | default('zh') }}"
+  voice_id: "{{ voice_id | default('') }}"
+  greeting: "{{ greeting | default('您好，这里是 ' ~ (business_name | default('我们')) ~ ' 的 AI 客服。请问有什么可以帮您？') }}"
+  max_idle_time: 60
+  system_prompt:
+    template_file: "../customer-service/system-prompt.template.md"
+    variables:
+      business_desc: |
+        {{ business_desc | trim | replace('\n', '\n        ') }}
+      business_name: "{{ business_name | default('我们') }}"
+
+# ---------------------------------------------------------------------------
+# Q2：I/O 模态
+# ---------------------------------------------------------------------------
+runtime_modality:
+  preset: "{{ io_modality }}"     # text_only | text_with_tts | omni | voice_only
+{%- if io_modality == "text_only" %}
+  voice_input: false
+  voice_output: false
+  text_input: true
+  text_output: true
+{%- elif io_modality == "text_with_tts" %}
+  voice_input: false
+  voice_output: true
+  text_input: true
+  text_output: true
+{%- elif io_modality == "omni" %}
+  voice_input: true
+  voice_output: true
+  text_input: true
+  text_output: true
+{%- elif io_modality == "voice_only" %}
+  voice_input: true
+  voice_output: true
+  text_input: false
+  text_output: false
+{%- else %}
+  # 未知模态枚举；按默认 text_with_tts 兜底
+  voice_input: false
+  voice_output: true
+  text_input: true
+  text_output: true
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# Q3：UI 形态
+#
+# UI 基座说明（重要）：
+#   widget-floating 已改造为「真接通」实现 —— 通过 agent-link.js 复用
+#   conversation-core 的 TRTC + agent/start 通路，AI 回复来自 LLM 字幕回流，
+#   并按后端实际启用的能力（转人工 / 工具 / 纪要）动态挂载交互。
+#   （旧版写死 IM 已废弃；overlay 复制 widget-floating 目录时务必带上 agent-link.js）
+#
+#   B2 自搭 UI：AI 在 widget-floating 这套「真接通基座」之上，按用户业务信息 /
+#   配色偏好生成定制皮肤（业务面板 / 文案 / tokens 取值），核心通路不改写，
+#   保证一定真接 AI 且符合 design-system 硬约束（字体 / icon / 禁 emoji / 走 token）。
+# ---------------------------------------------------------------------------
+ui:
+  form: "{{ ui_form }}"           # floating | fullscreen | headless
+{%- if ui_form == "headless" %}
+  overlay_required: false
+  ui_overlay: null
+{%- else %}
+  overlay_required: true
+  ui_overlay:
+    source_root: "scenarios/customer-service/ui"
+    target: "capabilities/conversation-core/web-demo"
+    layers:
+      - source: "widget-floating"
+        target: "."
+        replace: true
+{%- if "human-handoff" in extra_capabilities %}
+      - source: "admin-board"
+        target: "admin"
+        replace: true
+{%- endif %}
+{%- if ui_form == "fullscreen" %}
+    layout_hint: "fullscreen"     # 浮窗模板 + body 上挂 fullscreen class（CSS 强制铺满）
+{%- endif %}
+{%- endif %}
+
+# ---------------------------------------------------------------------------
+# Q4：能力清单
+# 装配命令（AI 在 §6.6 执行）：
+#   python3 scripts/add-capability.py {{ extra_capabilities | join(' ') }} --apply --json
+# extra_capabilities 为空时跳过装配
+# ---------------------------------------------------------------------------
+capabilities:
+  required:
+    - name: conversation-core
+      role: skeleton
+  install:
+{%- for cap in extra_capabilities %}
+{%- if cap == "knowledge-base" %}
+    - name: knowledge-base
+      role: capability
+      adapter: mock                # 默认 mock；上线前切到 local_json 或 default_rest
+      env:
+        KB_ADAPTER: mock
+        KB_TOP_K: "3"
+        KB_MIN_SCORE: "0.1"
+{%- elif cap == "human-handoff" %}
+    - name: human-handoff
+      role: capability
+      adapter: local_queue         # 默认本地队列；切到 default_rest 即对接真实工单系统
+      env:
+        HH_ADAPTER: local_queue
+{%- elif cap == "tool-calling" %}
+    - name: tool-calling
+      role: capability
+      # tool-calling 的 alpha/beta 双轨详见 capabilities/tool-calling/INTERFACE_ADAPT.md
+{%- elif cap == "session-summary" %}
+    - name: session-summary
+      role: capability
+      # 依赖 LLM_API_KEY；请确保 §7 已完成 LLM Key 配置
+{%- endif %}
+{%- endfor %}
+{%- if not extra_capabilities %}
+    []                             # 用户未勾选任何能力，仅装骨架
+{%- endif %}
+  optional: []
+  excluded:
+    - name: digital-human          # 本期不参与
+
+# ---------------------------------------------------------------------------
+# 启动后必做：契约清单提示（参照 SKILL.md §8）
+# ---------------------------------------------------------------------------
+post_assembly:
+  contract_review:
+    enabled: true
+    capabilities:
+{%- for cap in extra_capabilities %}
+      - "{{ cap }}"
+{%- endfor %}
+{%- if not extra_capabilities %}
+      []
+{%- endif %}
+    sop_section: "SKILL.md#8"
+  health_check:
+    url: "http://localhost:3000/api/v1/health"
+    expect_field: "status"
+    expect_value: "ok"
+
+# ---------------------------------------------------------------------------
+# 设计语言锁定（与路径 A 一致）
+# ---------------------------------------------------------------------------
+design:
+  tokens_file: "../../design_tokens.json"
+  guidelines: "../customer-service/ui/design-system/DESIGN_GUIDELINES.md"
+  theme: "dark"
+  emoji_in_ui: false
+  font_family: "SF Pro, Inter, 'Helvetica Neue', sans-serif"

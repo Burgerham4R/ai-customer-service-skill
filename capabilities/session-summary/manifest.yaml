@@ -1,0 +1,163 @@
+# session-summary 能力包自描述清单
+# 类型: capability（可选安装）
+
+name: "session-summary"
+version: "1.0.0"
+type: "capability"
+description: "会话自动纪要 + 结构化摘要输出（轮次记录 / 关键事实抽取 / LLM 二次总结）"
+
+dependencies:
+  - name: "conversation-core"
+    version: ">=1.0.0,<2.0.0"
+
+# 可选联动（软依赖，非硬性 dependency）：
+# 当同时安装 human-handoff 时，转人工建单会自动触发本能力对该 session 生成纪要并挂到工单，
+# 坐席在看板工单详情里即可直接看到客户问题上下文（无需手动点"生成纪要"）。
+# 联动由 human-handoff 侧 best-effort 调用实现（capabilities/human-handoff/src/summary_link.py）；
+# 本能力未安装时该调用静默跳过，不影响转人工主流程。
+optional_integrations:
+  - capability: "human-handoff"
+    trigger: "ticket.create"
+    behavior: "auto-finalize session summary (heuristic) and embed into ticket payload"
+
+extensions:
+  # 文本注入前归档为一条 user 轮次
+  - inject_at: "agent.before_push_text"
+    inline_code: |
+      # [session-summary] record user turn
+      from ._capability_loader import try_load_capability
+      _ss_recorder = try_load_capability("session-summary", "src/recorder.py")
+      if _ss_recorder is not None:
+          _ss_recorder.record_user_turn(session_id, text)
+  - inject_at: "agent.after_start"
+    inline_code: |
+      # [session-summary] open session
+      from ._capability_loader import try_load_capability
+      _ss_recorder = try_load_capability("session-summary", "src/recorder.py")
+      if _ss_recorder is not None:
+          _ss_recorder.open_session(session_id)
+  - inject_at: "server.router_extension"
+    inline_code: |
+      # [session-summary] mount sub-router
+      from ._capability_loader import try_load_capability as _try_load_capability
+      _ss_router_mod = _try_load_capability("session-summary", "src/router.py")
+      if _ss_router_mod is not None and hasattr(_ss_router_mod, "router"):
+          app.include_router(
+              _ss_router_mod.router, prefix="/api/v1/summary", tags=["session-summary"]
+          )
+
+config:
+  adapter:
+    description: "纪要写回目标：mock（默认，无外部依赖）| local_json | default_rest"
+    default: "mock"
+    env: "SS_ADAPTER"
+    options:
+      mock: "只打日志 + 返回 mock record_id，便于本地 / 路径 A 演示"
+      local_json: "追加写本地 JSONL（data/_writeback.jsonl）"
+      default_rest: "POST 到真实 CRM / 工单系统（需 SS_REST_BASE_URL[/SS_REST_TOKEN]）"
+  storage_dir:
+    description: "纪要文件落盘目录（每个 session 一个 JSON）"
+    default: "capabilities/session-summary/data/"
+  llm_summary:
+    description: "是否启用 LLM 二次总结（占用 LLM_API_KEY；离线场景置 false）"
+    default: true
+  retention_days:
+    description: "纪要保留天数；过期自动清理"
+    default: 30
+  redact_patterns:
+    description: "纪要落盘前自动脱敏的字段（与骨架 log_redaction 同标准）"
+    default:
+      - "secret_id"
+      - "secret_key"
+      - "api_key"
+      - "token"
+
+endpoints:
+  - method: GET
+    path: /api/v1/summary/{session_id}
+    description: 获取单 session 纪要（含轮次清单与结构化摘要）
+  - method: POST
+    path: /api/v1/summary/{session_id}/finalize
+    description: 关闭会话并触发 LLM 二次总结
+  - method: GET
+    path: /api/v1/summary/_list
+    description: 列出最近 N 条纪要（_offset / _limit query）
+
+integration:
+  mode: "auto"
+  auto_adapters:
+    - tech_stack: ["express", "koa", "fastify"]
+      adapter: "node-backend"
+    - tech_stack: ["flask", "fastapi", "django"]
+      adapter: "python-backend"
+    - tech_stack: ["react", "vue", "angular"]
+      adapter: "frontend-spa"
+      description: "在 SPA 中追加纪要查看面板"
+  fallback:
+    guided_templates:
+      - "../../auto_adapters/integration_templates/generic-backend.md"
+    manual_api:
+      rest_endpoint: "/api/v1/summary"
+
+security:
+  log_redaction:
+    enabled: true
+    patterns: ["secret_id", "secret_key", "api_key", "token", "credential"]
+  storage:
+    file_permission: "0600"
+
+# ---------------------------------------------------------------------------
+# 业务接口契约（Phase 3 新增；遵循 references/business-contract-spec.md v1.0）
+# 注：本能力源码本期不重构（折中策略），仅声明对外契约供 contract-adapt.py 消费。
+# ---------------------------------------------------------------------------
+business_contract:
+  port_class: "src.adapters.base.SummarySink"
+  default_adapter: "src.adapters.default_rest.DefaultRestSink"
+  mock_adapter: "src.adapters.mock.MockSink"
+  customization_sop: "INTERFACE_ADAPT.md"
+  external_apis:
+    # CRM / 工单系统：会话纪要写回
+    - name: summary.write_to_crm
+      direction: outbound
+      method: POST
+      path: /sessions/{session_id}/summary
+      description: "会话 finalize 后把结构化摘要写入用户的 CRM / 工单 / 数据中台"
+      request_schema:
+        session_id: string
+        user_id: string
+        topic: string
+        outcome: enum[resolved, transferred, abandoned, follow_up]
+        next_actions: string[]
+        full_transcript: string[]
+        structured_facts: object
+        finalized_at: int
+      response_schema:
+        record_id: string
+        accepted: bool
+      adapter_slots:
+        - request.topic
+        - request.outcome
+        - request.next_actions
+        - request.structured_facts
+        - response.record_id
+      auth:
+        type: bearer
+        location: header
+        name: Authorization
+      timeout_ms: 5000
+
+    # 二次总结调用（复用 conversation-core 的 LLM 接口；此处不重复声明，仅引用）
+    - name: summary.llm_summarize
+      direction: outbound
+      description: "复用 conversation-core 的 llm.chat_completions 接口；
+                    走相同的 LLM_API_URL / LLM_API_KEY 配置；不需要单独适配。"
+      method: POST
+      path: "(see conversation-core: llm.chat_completions)"
+      request_schema: {}
+      response_schema: {}
+      adapter_slots: []
+
+acceptance:
+  - "每条 user/assistant 轮次落盘为 JSONL"
+  - "调用 finalize 后产出结构化摘要（含 topics / next_actions）"
+  - "落盘文件权限 0600，敏感字段自动脱敏"

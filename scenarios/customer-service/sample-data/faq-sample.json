@@ -1,0 +1,37 @@
+[
+  {
+    "id": "faq_refund",
+    "question": "怎么申请退款？",
+    "answer": "进入「我的订单」选择需要退款的商品，点击「申请退款」并填写原因。审核通过后款项 1-3 个工作日原路返回；逾期未到账请联系人工客服核实。",
+    "keywords": ["退款", "申请退款", "退货", "refund", "money back"],
+    "source": "scenario_default"
+  },
+  {
+    "id": "faq_logistics",
+    "question": "物流多久能送到？",
+    "answer": "标准件 48 小时内发货；全国主要城市 3-5 天送达，偏远地区 5-7 天。可在「我的订单」查看实时物流轨迹；如超时可在订单详情页发起催单。",
+    "keywords": ["物流", "发货", "快递", "送货", "shipping", "delivery"],
+    "source": "scenario_default"
+  },
+  {
+    "id": "faq_invoice",
+    "question": "如何开发票？",
+    "answer": "下单时勾选「需要发票」，填写抬头与税号；已下单的可在「我的订单」点击「申请发票」补开。电子发票 24 小时内发送至预留邮箱，纸质发票 5-7 个工作日邮寄到付。",
+    "keywords": ["发票", "开票", "电子发票", "invoice"],
+    "source": "scenario_default"
+  },
+  {
+    "id": "faq_size",
+    "question": "尺码不合适怎么办？",
+    "answer": "支持 7 天无理由换码，运费由我方承担。请在「我的订单」点击「换码」按指引发货；同款缺货时可申请退款重新下单。",
+    "keywords": ["尺码", "换码", "换货", "不合身", "size"],
+    "source": "scenario_default"
+  },
+  {
+    "id": "faq_after_sale",
+    "question": "售后保修期是多久？",
+    "answer": "全场商品提供 1 年质保；电子类产品 30 天内可换新，30 天后由品牌方按官方政策处理。需要保修时，请准备订单号与故障描述，可由 AI 客服直接帮您建工单。",
+    "keywords": ["保修", "售后", "质保", "warranty", "维修"],
+    "source": "scenario_default"
+  }
+]

@@ -1,0 +1,43 @@
+# auto_adapters 索引清单
+# 供 add-capability CLI / Agent 解析适配器到目标技术栈的映射。
+
+version: "1.0.0"
+description: "技术栈解耦适配器组件库，Phase 2 首期覆盖 4 类 adapter / 12 种技术栈"
+
+# 渲染变量统一格式 ${VAR}，由 CLI 在写入前替换
+default_variables:
+  SKELETON_BASE_URL: "http://localhost:3000"
+  API_PREFIX: "/api/v1"
+  COMPONENT_NAME: "VoiceAgent"
+  ROUTE_PREFIX: "/voice-agent"
+
+adapters:
+  - name: "frontend-spa"
+    path: "frontend-spa"
+    tech_stack: ["react", "vue", "angular", "next"]
+    description: "前端 SPA 适配器，生成入房组件并对接骨架 /api/v1/*"
+    target_role: "frontend"
+
+  - name: "node-backend"
+    path: "node-backend"
+    tech_stack: ["express", "koa", "fastify"]
+    description: "Node.js 后端适配器，生成反向代理中间件"
+    target_role: "backend"
+
+  - name: "java-backend"
+    path: "java-backend"
+    tech_stack: ["spring-boot", "quarkus"]
+    description: "Java 后端适配器，生成 Filter / Quarkus Filter"
+    target_role: "backend"
+
+  - name: "python-backend"
+    path: "python-backend"
+    tech_stack: ["flask", "fastapi", "django"]
+    description: "Python 后端适配器，生成装饰器 / 子路由挂载"
+    target_role: "backend"
+
+# 三级降级所引用的通用模板
+fallback_templates:
+  guided_frontend: "integration_templates/generic-frontend.md"
+  guided_backend: "integration_templates/generic-backend.md"
+  manual_rest_api: "integration_templates/generic-rest-api.md"

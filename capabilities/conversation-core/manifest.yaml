@@ -1,0 +1,248 @@
+# conversation-core 能力包自描述清单
+# 类型: skeleton（骨架，默认安装；不内置任何业务场景）
+
+name: "conversation-core"
+version: "1.0.0"
+type: "skeleton"
+description: "通用 Voice Agent 骨架，提供 ASR/LLM/TTS/会话管理基础能力，不内置任何业务逻辑"
+
+# ---------------------------------------------------------------------------
+# 依赖声明
+# ---------------------------------------------------------------------------
+dependencies: []   # 骨架层无任何依赖
+
+# ---------------------------------------------------------------------------
+# 注入点（供 Phase 2 能力包叠加）
+# 规范: position 字段统一使用 before:函数名 / after:函数名 / replace:函数名
+# ---------------------------------------------------------------------------
+injection_points:
+  - id: "agent.before_start"
+    target: "src/agent.py"
+    position: "before:_ext_before_start_"
+    description: "在 start_agent 方法体内注入代码（如知识库检索结果拼接到 instructions）；锚点位于 start_agent 方法体内，确保可访问 config/info 等局部变量"
+
+  - id: "agent.after_start"
+    target: "src/agent.py"
+    position: "before:_ext_after_start_"
+    description: "在 task 拉起成功后注入会话级钩子（如转人工状态机初始化）；锚点位于 start_agent 方法体内"
+
+  - id: "agent.before_push_text"
+    target: "src/agent.py"
+    position: "before:_ext_before_push_text_"
+    description: "在文字注入下发前拦截（如关键词触发转人工 / 工具调用）；锚点位于 push_text 方法体内"
+
+  - id: "server.router_extension"
+    target: "src/server.py"
+    position: "after:app.include_router"
+    description: "用于追加业务能力包的 FastAPI 子路由"
+
+  - id: "modality.channel_resolver"
+    target: "src/modality.py"
+    position: "replace:resolve_input_channel"
+    description: "用于覆盖默认通道选择策略，如电商场景禁用语音输入"
+
+# ---------------------------------------------------------------------------
+# 配置接口
+# ---------------------------------------------------------------------------
+config:
+  credentials:
+    - key: "TENCENT_CLOUD_SECRET_ID"
+      required: true
+      description: "腾讯云 API SecretId（第一把 Key）"
+    - key: "TENCENT_CLOUD_SECRET_KEY"
+      required: true
+      description: "腾讯云 API SecretKey（第一把 Key）"
+    - key: "TENCENT_CLOUD_REGION"
+      required: false
+      default: "ap-guangzhou"
+      description: "腾讯云 API 地域"
+    - key: "TRTC_SDK_APP_ID"
+      required: true
+      description: "TRTC Conversational AI 应用 SDKAppID（第二把 Key）"
+    - key: "TRTC_SDK_SECRET_KEY"
+      required: true
+      description: "TRTC Conversational AI 应用 SDKSecretKey（第二把 Key）"
+    - key: "LLM_API_KEY"
+      required: true
+      description: "外部 LLM 接入密钥（第三把 Key）"
+    - key: "LLM_API_URL"
+      required: false
+      default: "https://api.openai.com/v1/chat/completions"
+      description: "OpenAI 兼容协议 Endpoint"
+    - key: "LLM_MODEL"
+      required: false
+      default: "gpt-4o-mini"
+      description: "默认 LLM 模型名称"
+
+  io_modality:
+    voice_input:
+      enabled: true
+      provider: "trtc-asr"
+      fallback: "text_input"
+      timeout_ms: 5000
+    text_input:
+      enabled: true
+      provider: null
+      fallback: null
+      timeout_ms: 0
+    voice_output:
+      enabled: true
+      provider: "trtc-tts"
+      fallback: "text_output"
+      timeout_ms: 3000
+    text_output:
+      enabled: true
+      provider: null
+      fallback: null
+      timeout_ms: 0
+
+# ---------------------------------------------------------------------------
+# 暴露 API 端点
+# ---------------------------------------------------------------------------
+endpoints:
+  - method: GET
+    path: /api/v1/health
+    description: 三把 Key 实时连通性自检（Web Demo 状态栏数据源）
+  - method: POST
+    path: /api/v1/get_config
+    description: 颁发房间号 / UserSig / 模态配置
+  - method: POST
+    path: /api/v1/agent/start
+    description: 启动 AI 通道机器人（StartAIConversation）
+  - method: POST
+    path: /api/v1/agent/stop
+    description: 停止 AI 通道机器人（StopAIConversation）
+  - method: POST
+    path: /api/v1/agent/control
+    description: 文本注入 / 打断（ControlAIConversation/ServerPushText）
+  - method: GET
+    path: /api/v1/sessions
+    description: 内存会话列表（仅调试用途）
+
+# ---------------------------------------------------------------------------
+# 技术栈集成规则
+# ---------------------------------------------------------------------------
+integration:
+  mode: "auto"
+  auto_adapters:
+    - tech_stack: ["react", "vue", "angular"]
+      adapter: "frontend-spa"
+      description: "前端 SPA 适配器，生成入房组件并嵌入 web-demo 调用骨架 API"
+    - tech_stack: ["express", "koa", "fastify", "next"]
+      adapter: "node-backend"
+      description: "Node.js 后端适配器，生成代理路由转发至骨架 /api/v1/*"
+    - tech_stack: ["spring-boot", "quarkus"]
+      adapter: "java-backend"
+      description: "Java 后端适配器，生成 Filter 转发至骨架"
+    - tech_stack: ["flask", "fastapi", "django"]
+      adapter: "python-backend"
+      description: "Python 后端适配器，生成装饰器或子应用挂载"
+  fallback:
+    guided_templates:
+      - "integration-templates/generic-frontend.md"
+      - "integration-templates/generic-backend.md"
+    manual_api:
+      rest_endpoint: "/api/v1"
+      sdk_packages:
+        - npm: "@trtc/voice-agent-sdk"
+        - maven: "com.tencent.trtc:voice-agent-sdk"
+        - pypi: "trtc-voice-agent"
+
+# ---------------------------------------------------------------------------
+# 业务接口契约（Phase 3 新增；遵循 references/business-contract-spec.md v1.0）
+# 注：本能力为 skeleton，源码本期不重构；仅声明对外契约供 contract-adapt.py 消费。
+# port_class / default_adapter 字段保留为 null，待 Phase 4 重构时补全。
+# ---------------------------------------------------------------------------
+business_contract:
+  port_class: null
+  default_adapter: null
+  mock_adapter: null
+  customization_sop: "INTERFACE_ADAPT.md"
+  external_apis:
+    # LLM：OpenAI 兼容协议是默认契约；可被替换为 Claude / Qwen / DeepSeek 等
+    - name: llm.chat_completions
+      direction: outbound
+      method: POST
+      path: /v1/chat/completions
+      description: "调用外部 LLM 完成文本回复（OpenAI Chat Completions 兼容协议）"
+      request_schema:
+        model: string
+        messages:
+          - role: enum[system, user, assistant, tool]
+            content: string
+        temperature: float
+        max_tokens: int
+        stream: bool
+      response_schema:
+        choices:
+          - message:
+              role: string
+              content: string
+            finish_reason: string
+        usage:
+          prompt_tokens: int
+          completion_tokens: int
+      adapter_slots:
+        - request.model
+        - request.messages
+        - response.choices
+      auth:
+        type: bearer
+        location: header
+        name: Authorization
+      timeout_ms: 30000
+
+    # 腾讯云 TRTC Conversational AI（控制面）：StartAIConversation 等
+    # 与 LLM 不同，TRTC 控制面契约不可适配（强绑腾讯云），此处仅做声明便于装配阶段提示
+    - name: trtc.start_ai_conversation
+      direction: outbound
+      method: POST
+      path: "tencentcloudapi.com/?Action=StartAIConversation"
+      description: "腾讯云 TRTC 控制面：拉起 AI 通话（强绑腾讯云协议，不可适配）"
+      request_schema:
+        SdkAppId: int
+        RoomId: string
+        AgentConfig: object
+        STTConfig: object
+        LLMConfig: object
+        TTSConfig: object
+      response_schema:
+        TaskId: string
+        SessionId: string
+      adapter_slots: []        # 不允许重映射
+      timeout_ms: 10000
+
+# ---------------------------------------------------------------------------
+# 安全声明（P0 缓解措施落地）
+# ---------------------------------------------------------------------------
+security:
+  log_redaction:
+    enabled: true
+    patterns:
+      - "secret_id"
+      - "secret_key"
+      - "api_key"
+      - "app_key"
+      - "token"
+      - "usersig"
+      - "credential"
+      - "authorization"
+  injection_protection:
+    xss_guard: true
+    prompt_injection_guard: true
+  credential_storage:
+    source: "env-only"     # 凭证仅来自环境变量
+    cache_file: ".credentials_cache"
+    cache_permission: "0600"
+    env_file_permission: "0600"
+  network:
+    enforce_https: true    # 全链路 HTTPS
+
+# ---------------------------------------------------------------------------
+# 验收标准（与开发指南 §11.1 对齐）
+# ---------------------------------------------------------------------------
+acceptance:
+  - "ASR/LLM/TTS 链路无业务逻辑硬编码"
+  - "三把 Key 输入后立即执行连通性自检"
+  - "Web Demo 顶部状态栏三盏指示灯全绿"
+  - "凭证缓存文件权限为 600，日志中无明文 Key"

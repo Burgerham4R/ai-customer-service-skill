@@ -1,0 +1,227 @@
+# human-handoff 能力包自描述清单
+# 类型: capability（可选安装）
+
+name: "human-handoff"
+version: "1.1.0"
+type: "capability"
+description: "语义触发转人工 + 工单生命周期（Phase 3 已重构为 ports/adapters/core 三层）"
+
+dependencies:
+  - name: "conversation-core"
+    version: ">=1.0.0,<2.0.0"
+
+# ---------------------------------------------------------------------------
+# 注入点（保持与 Phase 2 完全兼容；trigger.py / queue.py 现为 facade）
+# ---------------------------------------------------------------------------
+extensions:
+  # 在文本注入前判定是否触发"转人工"，命中则走人工通道
+  - inject_at: "agent.before_push_text"
+    inline_code: |
+      # [human-handoff] semantic trigger detection
+      from ._capability_loader import try_load_capability
+      _hh_trigger = try_load_capability("human-handoff", "src/trigger.py")
+      if _hh_trigger is not None:
+          _hand = _hh_trigger.maybe_handoff(session_id, text)
+          if _hand is not None:
+              text = _hand   # 用排队 / 接通话术替换原文，避免 LLM 自行回答
+  # 在 stop_agent 之后释放排队槽位
+  - inject_at: "agent.after_start"
+    inline_code: |
+      # [human-handoff] register session for handoff state machine
+      from ._capability_loader import try_load_capability
+      _hh_queue = try_load_capability("human-handoff", "src/queue.py")
+      if _hh_queue is not None:
+          _hh_queue.attach_session(session_id, info=info if 'info' in locals() else None)
+  - inject_at: "server.router_extension"
+    inline_code: |
+      # [human-handoff] mount sub-router
+      from ._capability_loader import try_load_capability as _try_load_capability
+      _hh_router_mod = _try_load_capability("human-handoff", "src/router.py")
+      if _hh_router_mod is not None and hasattr(_hh_router_mod, "router"):
+          app.include_router(
+              _hh_router_mod.router, prefix="/api/v1/handoff", tags=["human-handoff"]
+          )
+
+# ---------------------------------------------------------------------------
+# 配置
+# ---------------------------------------------------------------------------
+config:
+  triggers:
+    description: "强触发关键词列表（精确匹配 / 大小写不敏感）"
+    default:
+      - "人工"
+      - "转人工"
+      - "real person"
+      - "talk to agent"
+      - "speak to a human"
+  intent_keywords:
+    description: "弱触发关键词（与否定上下文做差集）"
+    default:
+      - "投诉"
+      - "complain"
+      - "manager"
+      - "无法解决"
+  queue_capacity:
+    description: "本地队列容量（仅 local_queue / mock adapter 生效）"
+    default: 50
+  agent_pool_size:
+    description: "可用座席数（>0 时自动接通）"
+    default: 1
+  estimated_wait_seconds_per_slot:
+    default: 30
+  retention_seconds:
+    description: "完成态会话保留时长（用于纪要查询）"
+    default: 600
+  adapter:
+    description: "选用哪种 HandoffClient 实现：local_queue | mock | default_rest | user_custom"
+    default: "local_queue"
+    env: "HH_ADAPTER"
+
+# ---------------------------------------------------------------------------
+# API 端点
+# ---------------------------------------------------------------------------
+endpoints:
+  - method: GET
+    path: /api/v1/handoff/status
+    description: 查询整体排队状态
+  - method: GET
+    path: /api/v1/handoff/{session_id}
+    description: 查询单个 session 的转人工状态（旧字段格式，保兼容）
+  - method: POST
+    path: /api/v1/handoff/request
+    description: "显式提交转人工申请（body 形如 {session_id, reason?}）"
+  - method: POST
+    path: /api/v1/handoff/connect
+    description: "模拟座席接通（body 形如 {session_id, agent_id}）"
+  - method: POST
+    path: /api/v1/handoff/cancel
+    description: "取消排队（body 形如 {session_id}）"
+  # ----- Phase 3 新增：工单坐席看板专用端点 -----
+  - method: GET
+    path: /api/v1/handoff/admin/tickets
+    description: "工单列表（支持 ?status=&limit= 过滤）"
+  - method: GET
+    path: /api/v1/handoff/admin/tickets/{ticket_id}
+    description: "工单详情"
+  - method: POST
+    path: /api/v1/handoff/admin/tickets/{ticket_id}/status
+    description: "坐席手动切换工单状态（pending|processing|closed|canceled|timeout）"
+
+# ---------------------------------------------------------------------------
+# 业务接口契约（Phase 3 新增；遵循 references/business-contract-spec.md v1.0）
+# ---------------------------------------------------------------------------
+business_contract:
+  port_class: "src.ports.handoff_client.HandoffClient"
+  default_adapter: "src.adapters.local_queue.LocalQueueHandoffClient"
+  mock_adapter: "src.adapters.mock.MockHandoffClient"
+  customization_sop: "INTERFACE_ADAPT.md"
+  external_apis:
+    - name: ticket.create
+      direction: outbound
+      method: POST
+      path: /tickets
+      description: "用户触发转人工时，向工单系统创建新工单"
+      request_schema:
+        user_id: string
+        subject: string
+        description: string
+        priority: enum[low, normal, high, urgent]
+        transcript: string[]
+      response_schema:
+        ticket_id: string
+        queue_position: int
+        eta_seconds: int
+      adapter_slots:
+        - request.subject
+        - request.priority
+        - response.ticket_id
+        - response.queue_position
+        - response.eta_seconds
+      auth:
+        type: bearer
+        location: header
+        name: Authorization
+      timeout_ms: 5000
+
+    - name: ticket.status_query
+      direction: outbound
+      method: GET
+      path: /tickets/{ticket_id}
+      description: "轮询工单状态，用于排队态进度更新"
+      request_schema:
+        ticket_id: string
+      response_schema:
+        ticket_id: string
+        status: enum[pending, processing, closed, canceled]
+        agent_id: string
+        updated_at: int
+      adapter_slots:
+        - response.status
+        - response.agent_id
+      timeout_ms: 3000
+
+    - name: ticket.cancel
+      direction: outbound
+      method: POST
+      path: /tickets/{ticket_id}/cancel
+      description: "用户取消转人工时通知工单系统"
+      request_schema:
+        ticket_id: string
+        reason: string
+      response_schema:
+        ticket_id: string
+        canceled: bool
+      adapter_slots:
+        - request.reason
+      timeout_ms: 3000
+
+    - name: ticket.status_callback
+      direction: inbound
+      method: POST
+      path: /api/v1/handoff/callback/ticket-status
+      description: "工单系统主动回调通知状态变更（可选；未启用时由 status_query 轮询替代）"
+      request_schema:
+        ticket_id: string
+        status: enum[pending, processing, closed, canceled]
+        agent_id: string
+      response_schema:
+        code: int
+        message: string
+      adapter_slots:
+        - request.status
+        - request.agent_id
+
+# ---------------------------------------------------------------------------
+# 集成
+# ---------------------------------------------------------------------------
+integration:
+  mode: "auto"
+  auto_adapters:
+    - tech_stack: ["react", "vue", "angular"]
+      adapter: "frontend-spa"
+      description: "在 SPA 中追加排队状态指示器组件"
+    - tech_stack: ["express", "koa", "fastify", "next"]
+      adapter: "node-backend"
+    - tech_stack: ["flask", "fastapi", "django"]
+      adapter: "python-backend"
+    - tech_stack: ["spring-boot", "quarkus"]
+      adapter: "java-backend"
+  fallback:
+    guided_templates:
+      - "../../auto_adapters/integration_templates/generic-frontend.md"
+    manual_api:
+      rest_endpoint: "/api/v1/handoff"
+
+security:
+  log_redaction:
+    enabled: true
+    patterns: ["phone", "mobile", "user_id", "credential", "authorization"]
+  network:
+    enforce_https: true        # default_rest adapter 强制非 localhost 的 HTTPS
+
+acceptance:
+  - "命中关键字立即进入工单流，状态可被前端轮询"
+  - "座席数 >0 时立即接通；=0 时返回估算等待时长"
+  - "session 取消 / 接通后正确释放槽位"
+  - "切换 HH_ADAPTER 不需修改业务代码（local_queue / mock / default_rest / user_custom）"
+  - "default_rest adapter 拒绝访问私网地址（除 localhost）"
