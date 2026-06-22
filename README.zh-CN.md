@@ -40,7 +40,15 @@ AI（自动完成所有操作）：
 > **任意位置安装**：本 Skill 可以放在项目子目录、`.agents/skills/`、`.codebuddy/skills/` 或任何位置——
 > **不需要**放在工作区根目录。脚本会自动定位自身路径，Agent 只需使用绝对路径。
 
-在 AI 聊天窗口中输入以下任意关键词即可触发：
+### 安装方式
+
+1. 克隆本仓库：
+   ```bash
+   git clone https://github.com/Burgerham4R/ai-service-skill.git
+   ```
+2. 在你的 AI 编程助手的聊天窗口中，让它加载 `SKILL.md` 文件，例如说：
+   > "从 /path/to/ai-service-skill/SKILL.md 加载这个 Skill"
+3. 加载完成后，用以下关键词即可触发：
 
 - "AI客服" / "搭建客服" / "客服机器人"
 - "TRTC + 客服" / "语音智能体 + 客服"
@@ -50,9 +58,11 @@ AI（自动完成所有操作）：
 
 要让客服智能体跑起来，你需要 3 个云服务凭证。别担心——它们只是从相应网站复制粘贴的 3 个字符串：
 
+> **Tencent RTC (trtc.io)** 是腾讯云旗下的国际实时音视频通信品牌。TRTC Conversational AI 服务基于腾讯云基础设施运行——你的 TRTC 账号和腾讯云账号通过统一登录体系关联。获取 API Key 时，系统会自动同步你的登录状态。
+
 | 密钥 | 用途 | 获取地址 |
 |------|------|---------|
-| 密钥 1：腾讯云 API Key | 证明你有权限使用腾讯云语音和通话服务 | https://console.cloud.tencent.com/cam/capi |
+| 密钥 1：Tencent Cloud API Key | 证明你有权限使用 TRTC 语音和通话服务 | https://console.tencentcloud.com/cam/capi |
 | 密钥 2：TRTC 应用凭证 | 让智能体能够拨打电话和进行语音聊天 | https://console.trtc.io/app |
 | 密钥 3：LLM API Key | 让智能体能够"思考"——理解用户问题并回复 | 你注册的 AI 服务网站（如 OpenAI、DeepSeek 等） |
 

@@ -40,7 +40,17 @@ You never open a terminal or run a script manually.
 > **Install anywhere**: This Skill can live in a project subdirectory, `.agents/skills/`, `.codebuddy/skills/`, or anywhere else —
 > it does **not** need to be at the workspace root. Scripts are self-locating; the Agent just needs to use absolute paths.
 
-Trigger it by typing any of these keywords in the AI chat window:
+### Installation
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/Burgerham4R/ai-service-skill.git
+   ```
+2. In your AI coding agent's chat window, point it to the `SKILL.md` file — for example, say:
+   > "Load the Skill from /path/to/ai-service-skill/SKILL.md"
+3. Once loaded, trigger it with any of the keywords below.
+
+### Trigger keywords
 
 - "AI customer service" / "build customer service" / "customer service bot"
 - "TRTC + customer service" / "voice agent + customer service"
@@ -48,11 +58,13 @@ Trigger it by typing any of these keywords in the AI chat window:
 
 ## What are the 3 keys?
 
-To get the customer service agent running, you need 3 cloud service credentials. Don't worry — they're just 3 strings you copy-paste from the corresponding websites:
+To get the customer service agent running, you need 3 cloud service credentials. Don't worry — they're just 3 strings you copy-paste from the corresponding websites.
+
+> **Tencent RTC (trtc.io)** is Tencent Cloud's international Real-Time Communication brand. The TRTC Conversational AI service runs on Tencent Cloud infrastructure — your TRTC account and Tencent Cloud account are linked through a unified login system. When you get your API Key, the system will automatically sync your login session.
 
 | Key | Purpose | Where to find it |
 |-----|---------|-----------------|
-| Key 1: Tencent Cloud API Key | Proves you have permission to use Tencent Cloud voice & calling services | https://console.cloud.tencent.com/cam/capi |
+| Key 1: Tencent Cloud API Key | Proves you have permission to use Tencent Cloud voice & calling services | https://console.tencentcloud.com/cam/capi |
 | Key 2: TRTC Application Credentials | Lets the agent make calls and do voice chat | https://console.trtc.io/app |
 | Key 3: LLM API Key | Lets the agent "think" — understand queries and respond | Your registered AI service website (e.g. OpenAI, DeepSeek, etc.) |
 

@@ -230,7 +230,7 @@ Send each key's value through the chat, and I'll write them into the `.env` file
 # ==========================================
 
 # --- Key 1: Tencent Cloud API Credentials ---
-# Get them here: https://console.cloud.tencent.com/cam/capi
+# Get them here: https://console.tencentcloud.com/cam/capi
 TENCENT_CLOUD_SECRET_ID=yourSecretId
 TENCENT_CLOUD_SECRET_KEY=yourSecretKey
 
@@ -254,11 +254,14 @@ LLM_MODEL_NAME=yourModelName (e.g., gpt-4o / deepseek-chat / claude-3-opus)
 #### Key 1: Tencent Cloud API Credentials (SecretId / SecretKey)
 
 **The AI should say**:
-> Let's start with Key 1 — Tencent Cloud API Credentials. This key proves you have permission to use Tencent Cloud's voice and calling services.
+> Let's start with Key 1 — Tencent Cloud API Credentials. This key proves you have permission to use TRTC's voice and calling services.
+>
+> A quick note: Tencent RTC (trtc.io) is Tencent Cloud's international RTC brand. Your TRTC account and Tencent Cloud account are connected — you'll use a unified login.
 >
 > To get it:
-> 1. Open this page: https://console.cloud.tencent.com/cam/capi (If you're not logged into Tencent Cloud yet, log in first)
-> 2. You'll see a page called "API Key Management." There will be a **SecretId** and a **SecretKey** (you may need to click "Show" to see the full content)
+> 1. If you haven't signed up yet, go to https://trtc.io and create a TRTC account first
+> 2. After logging in, open: https://console.tencentcloud.com/cam/capi (your login session will sync automatically)
+> 3. You'll see a page called "API Key Management." There will be a **SecretId** and a **SecretKey** (you may need to click "Show" to see the full content)
 >
 > Fill the two values into the code block below. Make sure to replace the placeholder text (`yourSecretId` and `yourSecretKey`), then **copy and send the entire block to me**:
 >
