@@ -46,13 +46,13 @@ AI（自动完成所有操作）：
 
 **用户级安装**（推荐 — 所有项目均可使用）：
 ```bash
-/skills install https://github.com/Burgerham4R/ai-service-skill
+/skills install https://github.com/Burgerham4R/ai-customer-service-skill
 ```
 
 **项目级安装**（仅当前项目可用）：
 ```bash
 # Skill 将安装到 ./.codex/skills/（访达中按 Cmd+Shift+. 可显示隐藏文件夹）
-/skills install --project https://github.com/Burgerham4R/ai-service-skill
+/skills install --project https://github.com/Burgerham4R/ai-customer-service-skill
 ```
 
 #### Claude Code CLI
@@ -60,20 +60,20 @@ AI（自动完成所有操作）：
 **用户级安装**（推荐 — 所有项目均可使用）：
 ```bash
 mkdir -p ~/.claude/skills
-git clone https://github.com/Burgerham4R/ai-service-skill.git ~/.claude/skills/ai-service-skill
+git clone https://github.com/Burgerham4R/ai-customer-service-skill.git ~/.claude/skills/ai-customer-service-skill
 ```
 
 **项目级安装**（仅当前项目可用）：
 ```bash
 mkdir -p ./.claude/skills
-git clone https://github.com/Burgerham4R/ai-service-skill.git ./.claude/skills/ai-service-skill
+git clone https://github.com/Burgerham4R/ai-customer-service-skill.git ./.claude/skills/ai-customer-service-skill
 ```
 
 #### 其他 Agent（CodeBuddy / Cursor 等）
 
 克隆到任意位置，然后让 Agent 加载 `SKILL.md`：
 ```bash
-git clone https://github.com/Burgerham4R/ai-service-skill.git
+git clone https://github.com/Burgerham4R/ai-customer-service-skill.git
 # 然后对你的 Agent 说：
 # "从 /path/to/ai-service-skill/SKILL.md 加载这个 Skill"
 ```
