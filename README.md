@@ -78,6 +78,8 @@ git clone https://github.com/Burgerham4R/ai-service-skill.git
 # "Load the Skill from /path/to/ai-service-skill/SKILL.md"
 ```
 
+> **After installation, restart your CLI session** to ensure the Skill is properly registered and loaded.
+
 ### Trigger keywords
 
 - "AI customer service" / "build customer service" / "customer service bot"

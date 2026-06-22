@@ -78,6 +78,8 @@ git clone https://github.com/Burgerham4R/ai-service-skill.git
 # "从 /path/to/ai-service-skill/SKILL.md 加载这个 Skill"
 ```
 
+> **安装完成后，请重启 CLI 会话** 以确保 Skill 被正确注册和加载。
+
 - "AI客服" / "搭建客服" / "客服机器人"
 - "TRTC + 客服" / "语音智能体 + 客服"
 - "帮我用 TRTC 搭建一个 AI 客服"
