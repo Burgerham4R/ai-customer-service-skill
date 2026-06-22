@@ -42,13 +42,41 @@ AI（自动完成所有操作）：
 
 ### 安装方式
 
-1. 克隆本仓库：
-   ```bash
-   git clone https://github.com/Burgerham4R/ai-service-skill.git
-   ```
-2. 在你的 AI 编程助手的聊天窗口中，让它加载 `SKILL.md` 文件，例如说：
-   > "从 /path/to/ai-service-skill/SKILL.md 加载这个 Skill"
-3. 加载完成后，用以下关键词即可触发：
+#### Codex CLI
+
+**用户级安装**（推荐 — 所有项目均可使用）：
+```bash
+/skills install https://github.com/Burgerham4R/ai-service-skill
+```
+
+**项目级安装**（仅当前项目可用）：
+```bash
+# Skill 将安装到 ./.codex/skills/（访达中按 Cmd+Shift+. 可显示隐藏文件夹）
+/skills install --project https://github.com/Burgerham4R/ai-service-skill
+```
+
+#### Claude Code CLI
+
+**用户级安装**（推荐 — 所有项目均可使用）：
+```bash
+mkdir -p ~/.claude/skills
+git clone https://github.com/Burgerham4R/ai-service-skill.git ~/.claude/skills/ai-service-skill
+```
+
+**项目级安装**（仅当前项目可用）：
+```bash
+mkdir -p ./.claude/skills
+git clone https://github.com/Burgerham4R/ai-service-skill.git ./.claude/skills/ai-service-skill
+```
+
+#### 其他 Agent（CodeBuddy / Cursor 等）
+
+克隆到任意位置，然后让 Agent 加载 `SKILL.md`：
+```bash
+git clone https://github.com/Burgerham4R/ai-service-skill.git
+# 然后对你的 Agent 说：
+# "从 /path/to/ai-service-skill/SKILL.md 加载这个 Skill"
+```
 
 - "AI客服" / "搭建客服" / "客服机器人"
 - "TRTC + 客服" / "语音智能体 + 客服"

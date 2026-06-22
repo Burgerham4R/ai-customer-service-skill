@@ -42,13 +42,41 @@ You never open a terminal or run a script manually.
 
 ### Installation
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/Burgerham4R/ai-service-skill.git
-   ```
-2. In your AI coding agent's chat window, point it to the `SKILL.md` file — for example, say:
-   > "Load the Skill from /path/to/ai-service-skill/SKILL.md"
-3. Once loaded, trigger it with any of the keywords below.
+#### Codex CLI
+
+**User-level** (recommended — available across all projects):
+```bash
+/skills install https://github.com/Burgerham4R/ai-service-skill
+```
+
+**Project-level** (only available in the current project):
+```bash
+# The skill will be installed to ./.codex/skills/ (Cmd+Shift+. to show hidden folders in Finder)
+/skills install --project https://github.com/Burgerham4R/ai-service-skill
+```
+
+#### Claude Code CLI
+
+**User-level** (recommended — available across all projects):
+```bash
+mkdir -p ~/.claude/skills
+git clone https://github.com/Burgerham4R/ai-service-skill.git ~/.claude/skills/ai-service-skill
+```
+
+**Project-level** (only available in the current project):
+```bash
+mkdir -p ./.claude/skills
+git clone https://github.com/Burgerham4R/ai-service-skill.git ./.claude/skills/ai-service-skill
+```
+
+#### Other agents (CodeBuddy / Cursor / etc.)
+
+Clone to any location and point your agent to `SKILL.md`:
+```bash
+git clone https://github.com/Burgerham4R/ai-service-skill.git
+# Then tell your agent:
+# "Load the Skill from /path/to/ai-service-skill/SKILL.md"
+```
 
 ### Trigger keywords
 
