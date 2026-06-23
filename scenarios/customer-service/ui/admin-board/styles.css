@@ -1,8 +1,12 @@
 /* =====================================================================
- * Ticket Agent Board — Design tokens only
+ * Ticket Agent Board — Stylesheet
  * Entry: scenarios/customer-service/ui/admin-board/index.html
  * Calls: /api/v1/handoff/admin/tickets/*
  * ===================================================================== */
+
+/* The light purple-pink glassmorphism palette lives in tokens.css (single source of
+   truth, shared with the customer widget — issue 10 / design sync). This file only
+   adds component styles; no :root override is needed here. */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -51,7 +55,7 @@ a:hover { text-decoration: underline; }
 .btn--small { padding: 6px 10px; font-size: 12px; }
 .btn--accent {
   background: var(--color-brand-accent);
-  color: var(--color-bg-gradient-end);
+  color: #fff;
   border-color: transparent;
 }
 .btn--accent:hover { filter: brightness(1.05); }
@@ -169,6 +173,7 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius-card);
   background: var(--color-bg-surface);
   padding: 16px;
+  box-shadow: 0 12px 40px -16px rgba(120,90,200,0.22);
 }
 @supports (backdrop-filter: blur(20px)) {
   .filter-rail { backdrop-filter: var(--effect-input-blur); }
@@ -226,6 +231,7 @@ a:hover { text-decoration: underline; }
   background: var(--color-bg-surface);
   padding: 20px 20px 8px;
   min-width: 0;
+  box-shadow: 0 12px 40px -16px rgba(120,90,200,0.22);
 }
 @supports (backdrop-filter: blur(20px)) {
   .content { backdrop-filter: var(--effect-input-blur); }
@@ -345,7 +351,7 @@ a:hover { text-decoration: underline; }
   z-index: 10;
   display: flex;
   flex-direction: column;
-  box-shadow: -16px 0 32px rgba(0, 0, 0, 0.32);
+  box-shadow: -16px 0 32px rgba(120, 90, 200, 0.22);
 }
 @supports (backdrop-filter: blur(20px)) {
   .drawer { backdrop-filter: var(--effect-input-blur); }
@@ -452,6 +458,27 @@ a:hover { text-decoration: underline; }
   font-size: 12px;
 }
 .summary-meta { font-size: 11px; color: var(--color-text-tertiary); margin: 8px 0 0; }
+
+/* ---------- Customer feedback block (issue 6) ---------- */
+.feedback-block {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-bg-border);
+}
+.feedback-body {
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-input);
+  background: var(--color-bg-surface);
+  padding: 12px 14px;
+}
+.feedback-rating { display: flex; align-items: center; gap: 10px; }
+.feedback-stars { color: #f5a623; letter-spacing: 2px; font-size: 15px; }
+.feedback-score { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+.feedback-comment {
+  margin-top: 8px; font-size: 13px; line-height: 1.5;
+  color: var(--color-text-secondary); word-break: break-word;
+}
+.feedback-comment.feedback-empty { color: var(--color-text-tertiary); font-style: italic; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {

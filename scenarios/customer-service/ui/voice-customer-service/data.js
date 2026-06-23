@@ -26,7 +26,8 @@ window.AppData = {
     { id: '1122038', date: 'Feb 08, 2026', pidx: 5, qty: 1, status: 'Processing', cls: 'b-processing' },
     { id: '1122039', date: 'Feb 14, 2026', pidx: 6, qty: 2, status: 'Delivered',  cls: 'b-delivered' },
   ],
-  greeting: "Hello! I'm your AI assistant powered by TRTC Conversational AI. You can ask about any product on the left, check your orders, or request a refund. Just speak naturally."
+  greeting: "Hello! I'm your AI assistant powered by TRTC Conversational AI. You can ask about any product on the left, check your orders, or request a refund. Just speak naturally.",
+  farewell: "Thank you for calling. Have a great day. Goodbye!"
 };
 
 // Resolve image paths

@@ -99,6 +99,8 @@ class Ticket:
             "closed_at": self.closed_at,
             # Written at ticket creation by human-handoff - session-summary linkage (None if capability not installed)
             "session_summary": self.extra.get("session_summary"),
+            # Written by HandoffService.submit_feedback (None if not yet rated)
+            "feedback": self.extra.get("feedback"),
         }
 
     def to_legacy_dict(self) -> dict:

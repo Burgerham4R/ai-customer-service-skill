@@ -34,9 +34,9 @@
 |---|---|
 | `index.html` | Three-column layout + top bar + control bar; includes Lucide-style SVG icon defs (no emoji) |
 | `app.js` | Full frontend logic (health / TRTC / KB / HH / products & orders / dedup) |
-| `styles.css` | Dark theme + glassmorphism + progress animations + tooltips; 100% via tokens.css variables |
+| `styles.css` | Light glassmorphism theme + progress animations + tooltips; 100% via tokens.css variables |
 | `mock-shop.json` | 3 products + 3 orders (English mock data) |
-| `tokens.css` | Auto-generated from `design_tokens.json` v1.1.0; **DO NOT EDIT** |
+| `tokens.css` | Light glassmorphism design tokens (hand-aligned to the running theme; single source of truth for `--color-*`) |
 
 ---
 

@@ -206,6 +206,27 @@
   </div>
 </div>
 
+<!-- Rating card (post-call CSAT) -->
+<div id="rating-overlay" class="rating-overlay" hidden>
+  <div class="rating-card glass">
+    <div class="rating-icon"><i data-lucide="star" class="w-5 h-5"></i></div>
+    <div class="rating-title">How was your experience?</div>
+    <div class="rating-sub">Your feedback helps us improve our service</div>
+    <div class="rating-stars" id="rating-stars">
+      <button type="button" class="star-btn" data-val="1" aria-label="1 star"><i data-lucide="star" class="w-7 h-7"></i></button>
+      <button type="button" class="star-btn" data-val="2" aria-label="2 stars"><i data-lucide="star" class="w-7 h-7"></i></button>
+      <button type="button" class="star-btn" data-val="3" aria-label="3 stars"><i data-lucide="star" class="w-7 h-7"></i></button>
+      <button type="button" class="star-btn" data-val="4" aria-label="4 stars"><i data-lucide="star" class="w-7 h-7"></i></button>
+      <button type="button" class="star-btn" data-val="5" aria-label="5 stars"><i data-lucide="star" class="w-7 h-7"></i></button>
+    </div>
+    <textarea id="rating-comment" class="rating-comment" placeholder="Tell us more (optional)…" rows="3"></textarea>
+    <div class="rating-actions">
+      <button type="button" id="rating-skip" class="dock-btn">Skip</button>
+      <button type="button" id="rating-submit" class="ctl-pill" disabled>Submit</button>
+    </div>
+  </div>
+</div>
+
 <script src="/static/data.js"></script>
 <script src="/static/app.js"></script>
 </body>

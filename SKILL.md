@@ -392,6 +392,7 @@ LLM_MODEL_NAME=yourModelName (e.g., gpt-4o / deepseek-chat / claude-3-opus)
 > - **Conversation capability**: The agent can actually understand what you say and respond (because real AI keys are configured)
 > - **Human handoff**: You'll see the handoff flow and UI (using demo data)
 > - **Knowledge base**: You'll see KB search results in action (using demo documents)
+> - **Session summary**: Default-installed in Path A — when a handoff ticket is created, an LLM-generated summary of the conversation is written into the ticket Description so agents see the context immediately
 >
 > Once set up, you'll open your browser and see a full customer service chat interface and a ticket management dashboard.
 
@@ -647,22 +648,19 @@ sleep 8 && curl -sS http://localhost:3000/api/v1/health
 
 ## 8. Capability Linking: Human Handoff ↔ Session Summary (Implemented)
 
-> When **human-handoff and session-summary are both installed**, they automatically link up — no extra configuration by the AI needed.
-> This linkage is a backend capability and applies to both Path A and B.
+> When **human-handoff and session-summary are both installed** they automatically link up — no extra configuration by the AI needed.
+> In Path A, session-summary is **default-installed** (see `recipe.yaml` `install:`), so the linkage is active out of the box. In Path B it links up only if the user selected session-summary.
 
-**Behavior**: At the moment human-handoff **creates a ticket**, it best-effort triggers session-summary
-to generate a summary for that session (the ticket-creation pipeline uses a **heuristic** summary, with zero local latency and no blocking),
-and snapshots the summary **into the ticket payload** (`ticket.session_summary`). When an agent opens the ticket details on the dashboard,
-they can **directly see** the customer issue context (topic / user intent / suggested actions), with no need to click "Generate Summary" manually.
+**Behavior**: When human-handoff **creates a ticket**, it best-effort triggers session-summary to generate an **LLM one-paragraph summary** of the conversation (from AI connect → handoff trigger) and writes it into the ticket's **`Description`** field. When an agent opens the ticket details on the dashboard, they **directly see** this conversation summary under "Conversation summary" — no separate "Session Summary" block, no manual "Generate Summary" click needed.
 
 **Implementation notes (for maintainers)**:
 - Linkage entry point: `capabilities/human-handoff/src/summary_link.py` (`attach_summary_to_ticket`)
-- **Soft dependency**: Dynamically loads session-summary via conversation-core's `_capability_loader`;
-  not installed / any exception → silently skip, **does not affect the main handoff flow**
-- Dashboard rendering (Path A): `admin-board/app.js` **prefers** the embedded `session_summary` inside the ticket
-- Ticket-creation pipeline defaults to `prefer_llm=False` (avoids LLM round-trip blocking ticket creation)
+- Summary generation: `capabilities/session-summary/src/summarizer.py` → `summarize_paragraph(record)` (LLM, uses `LLM_API_KEY` / `LLM_API_URL` / `LLM_MODEL`). Falls back to leaving the description unchanged if LLM is not configured or the session has no recorded turns.
+- **Soft dependency**: Dynamically loads session-summary via conversation-core's `_capability_loader`; not installed / any exception → silently skip, **does not affect the main handoff flow**
+- Dashboard rendering (Path A): `admin-board/app.js` renders the ticket `description` as "Conversation summary"; the legacy structured `session_summary` block has been removed
+- The transcript is uploaded by the frontend right before `/handoff/request` via `POST /api/v1/summary/{session_id}/record`, so the recorder has the turns to summarize
 
-> **Do not** change the ticket-creation summary generation into a synchronous LLM call — it will stall `/handoff/request` for ≥several seconds.
+> The LLM summary call runs synchronously inside the ticket-creation chain and may take a few seconds. This is acceptable because the Path A frontend fires `/handoff/request` **without awaiting** it (the handoff animation plays in parallel); the ticket `Description` is populated by the time the agent refreshes the board.
 
 ---
 
@@ -902,7 +900,7 @@ Path A UI must follow `$SKILL_ROOT/scenarios/customer-service/ui/design-system/D
 
 | Item | Mandatory Requirement |
 |---|---|
-| Theme | Dark locked (no light mode toggle) |
+| Theme | Light glassmorphism locked (soft purple + light pink + pale blue ambient over `#f7f3ff`; no dark mode toggle) |
 | Colors | Everything via CSS variables from `tokens.css`; **no hardcoded hex values** |
 | Font | `SF Pro / Inter / Helvetica Neue`, Chinese fallback to system default |
 | Icons | Lucide / Phosphor style monoline SVG icons, sizes: 16/20/24/32 |

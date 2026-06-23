@@ -249,6 +249,20 @@ def debug_usersig(user_id: str = "test_user_001") -> Dict[str, Any]:
 
 
 app.include_router(api)
+# [human-handoff] mount sub-router
+from ._capability_loader import try_load_capability as _try_load_capability
+_hh_router_mod = _try_load_capability("human-handoff", "src/router.py")
+if _hh_router_mod is not None and hasattr(_hh_router_mod, "router"):
+    app.include_router(
+        _hh_router_mod.router, prefix="/api/v1/handoff", tags=["human-handoff"]
+    )
+
+# [session-summary] mount sub-router (default installed; supplies ticket context summaries)
+_ss_router_mod = _try_load_capability("session-summary", "src/router.py")
+if _ss_router_mod is not None and hasattr(_ss_router_mod, "router"):
+    app.include_router(
+        _ss_router_mod.router, prefix="/api/v1/summary", tags=["session-summary"]
+    )
 
 # ---------------------------------------------------------------------------
 # Capability route mounting (optional; dynamically loaded via _capability_loader, silently

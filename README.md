@@ -108,7 +108,7 @@ To get the customer service agent running, you need 3 cloud service credentials.
 | Knowledge Base | Upload docs, agent auto-retrieves and answers FAQ | ✅ Simulated demo | 🔘 Optional |
 | Human Handoff | Complex issues auto-escalate to a human agent | ✅ Simulated demo | 🔘 Optional |
 | Tool Calling | Agent can proactively query data from your system | ❌ Not supported | 🔘 Optional |
-| Session Summary | Auto-generates a summary after each conversation | ❌ Not supported | 🔘 Optional |
+| Session Summary | Auto-generates a summary after each conversation | ✅ Simulated demo | 🔘 Optional |
 
 > "Simulated demo" means: the UI and workflow are complete, but uses demo data without connecting to a real business system. For real integration, choose "Integrate into My System".
 

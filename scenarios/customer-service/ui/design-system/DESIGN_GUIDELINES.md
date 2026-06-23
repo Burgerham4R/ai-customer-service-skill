@@ -42,6 +42,26 @@ Status Colors
   --red   : #ff5c7a         Error / Hang up / Muted
 ```
 
+> **Two variable namespaces, one palette.** The customer widget uses the short names
+> above (defined in its own `styles.css :root`). The admin board uses the long-form
+> `--color-*` namespace (defined in `tokens.css`). Both resolve to the SAME light
+> purple-pink glassmorphism palette. `tokens.css` is the canonical design-variable
+> file and now ships the light palette directly (no dark override anywhere):
+>
+> ```
+> tokens.css (--color-* namespace, shared by admin; light palette)
+>   --color-bg-gradient        multi-radial ambient, base #f7f3ff   (= .bg-ambient)
+>   --color-bg-surface         rgba(255,255,255,0.55)               (= --card)
+>   --color-bg-surface-strong  rgba(255,255,255,0.82)               (= --card-strong)
+>   --color-bg-border          rgba(155,123,247,0.18)               (purple-tinted stroke)
+>   --color-brand-accent       #9b7bf7                              (= --primary)
+>   --color-text-primary       #1a1530                              (= --foreground)
+>   --color-text-secondary     #6b6580                              (= --muted)
+>   --color-status-success     #1f8e57   info #3b6bcf
+>   --color-status-warning     #c46500   error #d6476b              (darkened for light bg)
+>   --font-family-base         Inter, 'SF Pro Display', system-ui, sans-serif
+> ```
+
 **Correct usage**:
 ```css
 .my-button {
@@ -281,3 +301,70 @@ Unsupported browsers will fall back to a solid semi-transparent background (`rgb
 - [ ] Orb/Wave animation state transitions correct (idle/listening/speaking three states)
 - [ ] Responsive: mobile sidebar shrinks to 50vh
 - [ ] Call `lucide.createIcons()` after every DOM insertion of new icons
+
+---
+
+## 12. Admin Board (Ticket Agent Board)
+
+> Scope: `scenarios/customer-service/ui/admin-board/` (served at `/static/admin/`).
+>
+> **Issue 10 — UI unification**: the admin board shares ONE visual language with the
+> customer widget above. It is a light, purple-pink glassmorphism theme — NOT the dark
+> teal palette that `tokens.css` ships by default.
+
+### 12.1 Theme override mechanism
+
+`tokens.css` is auto-generated from `design_tokens.json` and ships a dark teal palette
+(`--color-bg-gradient: #3A4D4A → #1E2B2B`, white text, green accent). The admin board
+does **not** edit `tokens.css`; instead `admin/styles.css` begins with a `:root` block
+that re-points the same CSS custom properties to the light palette — exactly mirroring
+how the customer widget's `styles.css` overrides its own `tokens.css`. Because
+`styles.css` loads after `tokens.css`, the override wins.
+
+### 12.2 Palette mapping (admin override → customer widget equivalent)
+
+| Admin token (`--color-*`) | Admin override value | Customer widget equivalent |
+|---|---|---|
+| `--color-bg-gradient` | Multi-radial light ambient, base `#f7f3ff` | `.bg-ambient` |
+| `--color-bg-surface` | `rgba(255,255,255,0.55)` | `--card` |
+| `--color-bg-surface-strong` | `rgba(255,255,255,0.82)` | `--card-strong` |
+| `--color-bg-border` | `rgba(155,123,247,0.18)` | purple-tinted stroke (visible on light) |
+| `--color-brand-accent` | `#9b7bf7` | `--primary` |
+| `--color-text-primary` | `#1a1530` | `--foreground` |
+| `--color-text-secondary` | `#6b6580` | `--muted` |
+| Status colors | `#1f8e57` / `#3b6bcf` / `#c46500` / `#d6476b` | darker, readable on light |
+
+Glass cards (`.content`, `.filter-rail`, `.drawer`) use `backdrop-filter: blur(20px)` +
+a purple-tinted shadow `0 12px 40px -16px rgba(120,90,200,0.22)` for depth on the light
+background. Accent buttons (`.btn--accent`) use purple background + white text.
+
+### 12.3 Typography & icons
+
+- Font: `Inter` loaded from Google Fonts CDN (added in `admin/index.html <head>`), falling
+  back to `SF Pro` / `system-ui` — identical stack to the customer widget.
+- Icons: the admin uses self-contained inline SVGs (no CDN dependency) for reliability.
+  They follow the same monochrome linear style as Lucide; no emoji anywhere.
+
+### 12.4 Session summary rendering (issue 2)
+
+The detail drawer renders the session summary attached to a ticket. Field names MUST
+match the real `summarizer.summarize()` output:
+
+```
+topics: [str]      user_intents: [str]     next_actions: [str]     highlights: [str]
+engine: "heuristic" | "llm"                model: str | null
+```
+
+> ⚠️ Do NOT use `topic/intent/key_points/suggested_actions` — those names are incorrect.
+> The real fields are `topics/user_intents/next_actions/highlights` (all arrays).
+
+If a ticket has no embedded summary, the drawer fetches `GET /api/v1/summary/{session_id}`;
+a "Generate summary" button calls `POST /api/v1/summary/{session_id}/finalize` (LLM path).
+
+### 12.5 Customer feedback block (issue 6)
+
+When a ticket carries a `feedback` object (posted by the customer's post-call rating card
+via `POST /api/v1/handoff/feedback`), the detail drawer renders a `.feedback-block`:
+5-star rating (`★`/`☆`), numeric `n/5` score, and the optional written comment. The
+feedback is also written onto the ticket (`ticket.extra["feedback"]`) so it appears in
+`GET /api/v1/handoff/admin/tickets` without an extra round-trip.

@@ -20,7 +20,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .recorder import SessionRecord
 
@@ -120,3 +120,44 @@ def summarize(record: SessionRecord, *, prefer_llm: bool = True) -> Dict[str, An
         except Exception as exc:  # noqa: BLE001
             logger.warning("LLM summarize failed, fallback to heuristic: %s", exc)
     return _heuristic(record)
+
+
+def summarize_paragraph(record: SessionRecord) -> Optional[str]:
+    """Generate a one-paragraph narrative summary of the session via LLM.
+
+    Used by the handoff flow to fill a ticket's Description with an LLM summary of the
+    chat from AI connect → handoff trigger. Returns None if LLM is not configured or the
+    session has no turns (caller then leaves the description unchanged).
+    """
+    api_key = os.getenv("LLM_API_KEY")
+    if not api_key:
+        return None
+    if not record.turns:
+        return None
+    import requests
+
+    api_url = os.getenv("LLM_API_URL", "https://api.openai.com/v1/chat/completions")
+    model = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    transcript = "\n".join(f"[{t.role}] {t.text}" for t in record.turns[-50:])
+    prompt = (
+        "You are a customer-service ticket summarizer. Read the conversation below between "
+        "a customer and an AI assistant, then write ONE concise paragraph (2-4 sentences) "
+        "summarizing what the customer asked about and what was discussed, from the moment "
+        "the AI connected up to the point the customer requested a human agent. Do not invent "
+        "facts not present in the conversation. Do not include any sensitive data (API key / "
+        "token etc.). Output only the paragraph, with no preamble.\n"
+        f"Conversation:\n{transcript}\n"
+    )
+    resp = requests.post(
+        api_url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+        },
+        timeout=20,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return (data["choices"][0]["message"]["content"] or "").strip() or None

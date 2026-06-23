@@ -38,9 +38,10 @@ capabilities:
       adapter: local_queue         # Default local queue; switch to default_rest for real ticketing system
       env:
         HH_ADAPTER: local_queue
+    - name: session-summary        # Default installed: supplies LLM chat summary for handoff ticket Description
+      role: capability
   optional:                        # Not installed by default in Path A; Path B users can select
     - name: tool-calling
-    - name: session-summary
   excluded:
     - name: digital-human          # Placeholder capability, not participating in this release
 

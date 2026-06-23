@@ -534,3 +534,70 @@ body { background: #f7f3ff; color: var(--foreground); }
   aside { height: auto !important; max-height: 50vh !important; }
   .im-drawer { right: 12px; bottom: 80px; }
 }
+
+/* ===== RATING CARD (post-call CSAT) ===== */
+.rating-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(26,21,48,0.35);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  animation: fade-in-down .25s ease;
+}
+.rating-card {
+  width: 380px; max-width: calc(100% - 32px);
+  border-radius: 24px; padding: 28px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  animation: bubble-in .35s ease-out;
+}
+.rating-icon {
+  width: 48px; height: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-grad); color: white;
+  box-shadow: 0 10px 24px -8px rgba(155,123,247,0.55);
+}
+.rating-title { font-size: 18px; font-weight: 700; color: #1a1530; text-align: center; }
+.rating-sub { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: -8px; }
+.rating-stars { display: flex; gap: 6px; }
+.star-btn {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.9);
+  color: #c9c2d8; cursor: pointer; transition: all .15s ease;
+}
+.star-btn:hover { transform: translateY(-2px); }
+.star-btn.lit {
+  color: #f5a623; background: rgba(245,166,35,0.12);
+  border-color: rgba(245,166,35,0.4);
+}
+.rating-comment {
+  width: 100%; border-radius: 14px; padding: 12px 14px;
+  background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.9);
+  font-size: 13px; color: #1a1530; outline: none; resize: none;
+  font-family: inherit;
+}
+.rating-comment:focus { border-color: rgba(155,123,247,0.5); }
+.rating-actions { display: flex; gap: 10px; width: 100%; justify-content: center; margin-top: 4px; }
+#rating-submit:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+/* ===== HUMAN AGENT MODE (handoff connected) ===== */
+#right-console.handoff-mode .orb {
+  background:
+    radial-gradient(circle at 32% 28%, #ffffff 0%, rgba(255,255,255,0.8) 12%, transparent 35%),
+    radial-gradient(circle at 65% 75%, rgba(123,168,247,0.9) 0%, transparent 50%),
+    linear-gradient(135deg, #7ba8f7 0%, #9bc0ff 50%, #b8d0ff 100%);
+  box-shadow:
+    inset -12px -16px 32px rgba(40,90,200,0.28),
+    inset 10px 12px 24px rgba(255,255,255,0.6),
+    0 24px 60px -10px rgba(123,168,247,0.6),
+    0 8px 24px rgba(155,200,255,0.4);
+}
+/* Issue 4: once a human agent is connected, the dock keeps ONLY the hang-up button
+   (mic + human-support are hidden), restyled as an "End call" pill. */
+#right-console.handoff-mode .dock-mic,
+#right-console.handoff-mode .dock-agent { display: none !important; }
+.dock-btn.hang-agent {
+  width: auto; padding: 10px 20px; gap: 8px;
+  background: linear-gradient(135deg, #ff5c7a, #ff8aa3); color: #fff;
+  border-color: rgba(255,92,122,0.4);
+}
+.dock-btn.hang-agent span { font-size: 13px; font-weight: 600; white-space: nowrap; }

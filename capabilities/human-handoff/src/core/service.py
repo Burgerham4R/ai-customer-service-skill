@@ -153,6 +153,24 @@ class HandoffService:
     def query_ticket(self, ticket_id: str) -> Optional[TicketStatus]:
         return self._client.query_status(ticket_id)
 
+    # ------------------------------------------------------------------
+    # Customer satisfaction feedback
+    # ------------------------------------------------------------------
+    def submit_feedback(self, session_id: str, rating: int, comment: str = "") -> dict:
+        """Persist a satisfaction rating and, if a ticket exists for the session,
+        attach it to that ticket so agents can see the score on the dashboard."""
+        from ..feedback_store import make_feedback, save_feedback
+
+        fb = make_feedback(rating, comment)
+        save_feedback(session_id, fb)
+        try:
+            ticket = self._client.get_or_attach(session_id)
+            if ticket is not None:
+                ticket.extra["feedback"] = fb
+        except Exception:  # noqa: BLE001 - feedback must never break on ticket lookup
+            pass
+        return {"session_id": session_id, "feedback": fb}
+
 
 # ---------------------------------------------------------------------------
 # Default service singleton

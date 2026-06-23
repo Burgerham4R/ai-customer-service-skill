@@ -30,6 +30,8 @@
     trtcClient: null,
     micEnabled: false,
     handoffActive: false,
+    handoffConnected: false, // true once a human agent is connected (AI stopped)
+    ending: false,           // true while the farewell is being spoken before hangup
     queueTimer: null,
     queueSeconds: 0,
     localEchoes: [],       // [{ text, at: timestamp }] for dedup
@@ -38,14 +40,34 @@
     aiRoundBubbleId: {},   // roundid → DOM element id (not used in chat drawer)
     aiRoundBubbleEl: {},   // roundid → DOM element (bubble node in chat) for in-place update
     userBubbleOpen: false,
+    transcript: [],        // [{ role, text }] mirror of the session for summary upload
+    lastSessionId: null,   // remembered after hangup so the rating card can post feedback
+    ratingValue: 0,        // currently selected star value in the rating card
   };
 
-  // Handoff keywords
+  // Handoff keywords (fast-path; if not matched, the frontend still asks the
+  // backend /api/v1/handoff/detect to reuse the same intent_detector logic)
   var HANDOFF_KEYWORDS = [
     'talk to agent', 'human agent', 'human support', 'real person',
     'live agent', 'speak to a human', 'transfer to agent', 'real human',
   ];
+
+  // Weak signals that make an utterance worth a backend /detect round-trip.
+  // Used as a guard so ordinary "help me with my order" requests are NOT sent to
+  // the (broad) intent_detector and mis-transferred to a human.
+  var HANDOFF_HINT_WORDS = [
+    'human', 'agent', 'person', 'representative', 'someone real',
+    'live chat', 'manager', '人工', '客服', '真人', '坐席',
+  ];
+
+  // End-of-conversation keywords (issue 1 / issue 5): voice-triggered farewell + auto hangup
+  var END_KEYWORDS = [
+    'bye', 'goodbye', 'end conversation', 'end the call', 'end this call',
+    '结束', '再见', '拜拜', '挂断', '结束对话',
+  ];
+
   var ECHO_TTL_MS = 30000;
+  var FAREWELL_HANGUP_DELAY_MS = 4200; // let the farewell TTS finish before hanging up
 
   // =====================================================================
   // API helpers
@@ -155,6 +177,7 @@
 
   function addBubble(role, text) {
     var chat = $('chat');
+    if (role === 'ai') text = stripMarkdown(text);
     var div;
     if (role === 'system') {
       div = document.createElement('div');
@@ -191,6 +214,28 @@
 
   function escapeHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Display-layer markdown sanitizer (defense-in-depth only).
+  // NOTE: this strips markdown symbols from the on-screen transcript; it CANNOT affect
+  // what TTS reads aloud (TTS runs server-side from raw LLM output). The real fix for
+  // "TTS reads * out loud" is the backend default instructions that forbid markdown.
+  function stripMarkdown(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/```[\s\S]*?```/g, ' ')      // fenced code blocks
+      .replace(/`([^`]*)`/g, '$1')           // inline code
+      .replace(/\*\*([^*]+)\*\*/g, '$1')     // bold **x**
+      .replace(/\*([^*]+)\*/g, '$1')         // italic *x*
+      .replace(/__([^_]+)__/g, '$1')         // bold __x__
+      .replace(/_([^_]+)_/g, '$1')           // italic _x_
+      .replace(/~~([^~]+)~~/g, '$1')         // strikethrough
+      .replace(/^\s{0,3}#{1,6}\s+/gm, '')    // ATX headers
+      .replace(/^\s*[-*+]\s+/gm, '')         // bullet list markers
+      .replace(/^\s*\d+\.\s+/gm, '')         // numbered list markers
+      .replace(/[*_`~#]/g, '')               // any leftover symbols
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
   }
 
   // =====================================================================
@@ -322,12 +367,12 @@
       var existingEl = state.aiRoundBubbleEl[roundid];
       if (existingEl && existingEl.parentNode) {
         // In-place update of the existing bubble text
-        existingEl.textContent = state.aiRoundText[roundid];
+        existingEl.textContent = stripMarkdown(state.aiRoundText[roundid]);
       } else {
         // First chunk of a new round: create a new bubble and track it
         var row = document.createElement('div');
         row.className = 'bubble-row ai';
-        row.innerHTML = '<div class="bubble-avatar ai">AI</div><div class="bubble ai">' + escapeHtml(state.aiRoundText[roundid]) + '</div>';
+        row.innerHTML = '<div class="bubble-avatar ai">AI</div><div class="bubble ai">' + escapeHtml(stripMarkdown(state.aiRoundText[roundid])) + '</div>';
         var chat = $('chat');
         chat.appendChild(row);
         chat.scrollTop = chat.scrollHeight;
@@ -337,6 +382,9 @@
     }
 
     if (end && roundid) {
+      // Record the completed assistant turn for later summary upload (issue 2)
+      var aiFinalText = state.aiRoundText[roundid];
+      if (aiFinalText) recordTurn('assistant', aiFinalText);
       delete state.aiRoundText[roundid];
       delete state.aiRoundLast[roundid];
       delete state.aiRoundBubbleEl[roundid];
@@ -454,13 +502,19 @@
     stopQueueAnimation();
     state.active = false;
     state.handoffActive = false;
+    state.handoffConnected = false;
+    state.ending = false;
     state.sessionId = null;
+    state.transcript = [];
     state.localEchoes = [];
     state.aiRoundText = {};
     state.aiRoundLast = {};
     state.aiRoundBubbleId = {};
     state.aiRoundBubbleEl = {};
 
+    var rc = $('right-console');
+    if (rc) rc.classList.remove('handoff-mode');
+    setHangButtonMode(false);
     var dock = $('dock');
     if (dock) dock.dataset.state = 'collapsed';
     var chatBtn = $('ctl-chat');
@@ -476,6 +530,9 @@
   function hangup() {
     addBubble('system', 'Ending session\u2026');
 
+    // Remember the session so the post-call rating card can submit feedback (issue 6)
+    var ratingSessionId = state.sessionId;
+
     var stopPromise = Promise.resolve();
     if (state.sessionId) {
       stopPromise = api('POST', '/api/v1/agent/stop', { session_id: state.sessionId }).catch(function() {});
@@ -489,6 +546,11 @@
       addBubble('system', 'Conversation ended.');
       setMode('pre');
       closeDetailViewSilent();
+      // Issue 6: pop the CSAT rating card after a real session
+      if (ratingSessionId) {
+        state.lastSessionId = ratingSessionId;
+        showRatingCard(ratingSessionId);
+      }
     });
   }
 
@@ -505,7 +567,17 @@
       return;
     }
 
-    // During handoff flow, block user messages from reaching LLM
+    // Farewell in progress — block input
+    if (state.ending) {
+      addBubble('system', 'The conversation is ending. Please wait.');
+      return;
+    }
+    // Human agent connected — block input from reaching the LLM (issue 4)
+    if (state.handoffConnected) {
+      addBubble('system', 'You are now connected to a human agent. Please speak naturally.');
+      return;
+    }
+    // During handoff queue, block user messages from reaching LLM
     if (state.handoffActive) {
       addBubble('system', 'Please wait while we connect you to an agent.');
       return;
@@ -528,16 +600,170 @@
   }
 
   function onUserUtteranceFinal(text) {
-    // During handoff, block all user input from LLM + TTS processing
-    if (state.handoffActive) return;
+    // [system] injections (card clicks) are authoritative data fed TO the AI, not real
+    // user speech — never run end/handoff intent detection on them. (Their wording, e.g.
+    // "do NOT transfer to a human agent", would otherwise falsely trigger handoff.)
+    if (text && String(text).indexOf('[system]') === 0) return;
 
+    // Mirror the user turn for later summary upload (skips [system] injections)
+    recordTurn('user', text);
+
+    // Once a human agent is connected, the AI pipeline is stopped — ignore everything
+    if (state.handoffConnected) return;
+    // While ending (farewell playing) or in the handoff queue, block LLM/TTS
+    if (state.ending || state.handoffActive) return;
+
+    // Issue 5: voice-triggered end intent → play farewell → auto hangup (issue 1 exit)
+    if (detectEndIntent(text)) {
+      endConversationWithFarewell();
+      return;
+    }
+
+    // Issue 7: handoff — keyword fast-path first, then ask backend /detect (reuses the
+    // same intent_detector logic) so voice phrases not in the local list still match.
     var lower = text.toLowerCase();
     if (HANDOFF_KEYWORDS.some(function(kw) { return lower.indexOf(kw) !== -1; })) {
       talkToAgent();
       return;
     }
+    // Fallback to backend /detect ONLY when the utterance shows a human/agent signal.
+    // The backend intent_detector also matches broad words like "help"/"support", so
+    // calling it on every message would mis-transfer normal help requests; this guard
+    // keeps the AI-helps flow intact while still catching "let me talk to a representative".
+    var hasHandoffSignal = HANDOFF_HINT_WORDS.some(function(w) { return lower.indexOf(w) !== -1; });
+    if (hasHandoffSignal) {
+      api('POST', '/api/v1/handoff/detect', { text: text })
+        .then(function(resp) {
+          if (resp && resp.data && resp.data.matched) talkToAgent();
+        })
+        .catch(function(e) { console.debug('[detect] error', e); });
+    }
+
     // KB lookup silently
     silentKbLookup(text).catch(function(e) { console.debug('[kb] error', e); });
+  }
+
+  // Detect end-of-conversation intent from user speech/text (issue 5)
+  function detectEndIntent(text) {
+    if (!text) return false;
+    var lower = String(text).toLowerCase();
+    return END_KEYWORDS.some(function(kw) { return lower.indexOf(kw) !== -1; });
+  }
+
+  // Mirror a conversation turn for later summary upload (issue 2).
+  // [system] injections (card clicks) are NOT real user speech — skip them.
+  function recordTurn(role, text) {
+    if (!text) return;
+    var t = String(text).trim();
+    if (!t) return;
+    if (t.indexOf('[system]') === 0) return;
+    state.transcript.push({ role: role, text: t });
+  }
+
+  // Issue 1 + 2 + 5: play a configurable farewell over TTS, then auto-hangup.
+  // Used by BOTH the voice-triggered end intent and the manual hang-up button, so the
+  // AI always speaks the farewell before the call closes (and before the rating card).
+  function endConversationWithFarewell() {
+    if (state.ending) return;
+    state.ending = true;
+    // If a handoff is mid-flight (queue animation + preset broadcasts), cancel it so its
+    // pending timers stop injecting more announcements over the farewell.
+    if (state.handoffActive) {
+      state.handoffActive = false;
+      stopQueueAnimation();
+    }
+    // Mute the mic immediately so ambient noise cannot keep feeding the AI new "user"
+    // messages during the farewell — otherwise the AI stays listening and the call can't
+    // close cleanly (issue: manual hang-up blocked by background noise).
+    if (state.trtcClient) {
+      state.trtcClient.updateLocalAudio({ mute: true }).catch(function() {});
+      state.micEnabled = false;
+      updateMicUI();
+    }
+    addBubble('system', 'Ending conversation\u2026');
+    setMode('speaking');
+
+    var farewell = (window.AppData && window.AppData.farewell) ||
+      'Thank you for contacting us. Have a wonderful day. Goodbye!';
+    sendInterrupt(); // cut any ongoing AI response before the farewell
+    speakFixed(farewell);
+
+    // Wait long enough for the TTS to actually finish speaking the farewell before
+    // stopping the agent. Estimate from word count (TTS ~3 words/sec + synthesis lead).
+    var words = String(farewell).split(/\s+/).filter(Boolean).length;
+    var delay = Math.max(FAREWELL_HANGUP_DELAY_MS, Math.round(words * 380 + 2500));
+    setTimeout(function() {
+      if (!state.ending) return;
+      state.ending = false;
+      hangup();
+    }, delay);
+  }
+
+  // Decide how to hang up based on the current state (issue 2):
+  // - human-agent mode / already ending → hang up directly (AI is stopped, no TTS farewell)
+  // - AI active → play the farewell first, then hang up
+  function requestHangup() {
+    if (state.ending) { hangup(); return; }
+    if (state.handoffConnected) { hangup(); return; }
+    if (state.active) { endConversationWithFarewell(); return; }
+    hangup();
+  }
+
+  // Issue 4: switch the UI to the human-agent state and stop the AI pipeline.
+  function enterHumanAgentMode() {
+    state.handoffConnected = true;
+    state.handoffActive = false;
+    var rc = $('right-console');
+    if (rc) rc.classList.add('handoff-mode');
+    // Calm the orb into a gentle "listening" animation (AI is stopped, no fast breathe)
+    var orb = document.querySelector('.orb-wrap');
+    var wave = $('wave');
+    if (orb) { orb.classList.remove('idle', 'listening', 'speaking'); orb.classList.add('listening'); }
+    if (wave) { wave.classList.remove('idle', 'listening', 'speaking'); wave.classList.add('listening'); }
+    var aiState = $('ai-state');
+    var aiSub = $('ai-substate');
+    if (aiState) aiState.textContent = 'Connected to a human agent';
+    if (aiSub) aiSub.textContent = 'You are now speaking with a live agent · AI assistant paused';
+    // Issue 4: in human-agent mode the dock shows ONLY an "End call" button (mic +
+    // human-support are hidden via CSS .handoff-mode). Restyle the hang buttons.
+    setHangButtonMode(true);
+  }
+
+  // Toggle the hang-up button between its normal (icon-only circle) and human-agent
+  // (pill with "End call" label) appearance.
+  function setHangButtonMode(on) {
+    [$('btn-hang'), $('btn-hang-detail')].forEach(function(b) {
+      if (!b) return;
+      if (on) {
+        b.classList.add('hang-agent');
+        b.innerHTML = '<i data-lucide="phone-off" class="w-5 h-5"></i><span>End call</span>';
+      } else {
+        b.classList.remove('hang-agent');
+        b.innerHTML = '<i data-lucide="phone-off" class="w-5 h-5"></i>';
+      }
+    });
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Speak a PRESET line verbatim over TTS. The line is wrapped in a [system] directive
+  // so the LLM echoes it EXACTLY instead of composing its own reply to the announcement
+  // (a bare type-20000 injection is treated as user input and the LLM paraphrases it).
+  // Used for the fixed handoff announcements and the farewell so the AI says exactly the
+  // scripted text. Does not sendInterrupt — callers decide when to cut prior audio.
+  function speakFixed(text) {
+    pushLocalEcho(text);
+    addBubble('ai', text);
+    var msg = '[system] This is a scripted announcement. Speak to the user EXACTLY the ' +
+      'following sentence, verbatim, with no preamble, no paraphrase, and no extra words. ' +
+      'Output only this sentence and nothing else: ' + text;
+    setTimeout(function() {
+      sendCustomToAgent({
+        type: 20000,
+        sender: state.userId,
+        receiver: [state.agentUserId],
+        payload: { id: uuid(), message: msg, timestamp: Date.now() },
+      });
+    }, 120);
   }
 
   function silentKbLookup(query) {
@@ -584,84 +810,81 @@
       addBubble('system', 'Please start the conversation before requesting an agent.');
       return;
     }
+    if (state.handoffConnected) {
+      addBubble('system', 'You are already connected to a human agent.');
+      return;
+    }
     if (state.handoffActive) {
       addBubble('system', 'You are already in the handoff queue. Please wait.');
+      return;
+    }
+    if (state.ending) {
+      addBubble('system', 'The conversation is ending. Please wait.');
       return;
     }
 
     state.handoffActive = true;
 
+    // Issue 3: mute the mic during the queue broadcast so the TTS guidance is not
+    // interrupted by user audio picked up by the microphone.
+    if (state.trtcClient) {
+      state.trtcClient.updateLocalAudio({ mute: true }).catch(function(e) {
+        console.warn('mute-on-handoff failed', e);
+      });
+      state.micEnabled = false;
+      updateMicUI();
+    }
+
     addBubble('system', 'Transferring to a human agent\u2026');
     setMode('speaking');
-
-    // Call handoff API
-    api('POST', '/api/v1/handoff/request', { session_id: state.sessionId }).catch(function() {});
 
     // Show queue animation
     startQueueAnimation();
 
-    // Step 1: TTS voice guidance — connecting to human agent
+    var sid = state.sessionId;
+
+    // Issue 2: upload the conversation transcript BEFORE requesting the handoff, so
+    // the backend can attach a context summary to the ticket (attach_summary_to_ticket
+    // reads from the session-summary recorder). Must precede /handoff/request.
+    api('POST', '/api/v1/summary/' + encodeURIComponent(sid) + '/record', {
+      turns: state.transcript.slice(),
+    }).catch(function(e) { console.debug('[summary record] error', e); });
+
+    // Then create the handoff ticket (carry the last user utterance as the reason)
+    var reason = (state.transcript.length && state.transcript[state.transcript.length - 1].text) || 'human handoff';
+    api('POST', '/api/v1/handoff/request', { session_id: sid, reason: reason }).catch(function() {});
+
+    // Fixed handoff voice flow (identical whether voice-triggered or button-clicked).
+    // The queue animation runs 8s. Two preset lines are spoken verbatim via [system]
+    // directives (speakFixed) so the AI reads them exactly, not an LLM paraphrase:
+    //   t=2s  → "Connecting you to a human agent. Please hold."  (正在为您转接人工客服，请稍候)
+    //   t=6s  → "You are now connected."                         (已接通; 2s before animation ends)
+    //   t=8s  → animation done → switch UI to human mode + connect ticket
+    //   t=10s → stop the AI (after "You are now connected." finishes, so it isn't cut)
     setTimeout(function() {
       if (!state.handoffActive) return;
-      var voiceText = "Connecting you to a live agent. Please hold on momentarily.";
-      pushLocalEcho(voiceText);
-      addBubble('ai', voiceText);
-      sendInterrupt();
-      setTimeout(function() {
-        sendCustomToAgent({
-          type: 20000,
-          sender: state.userId,
-          receiver: [state.agentUserId],
-          payload: { id: uuid(), message: voiceText, timestamp: Date.now() },
-        });
-      }, 120);
-      setMode('idle');
-    }, 600);
+      sendInterrupt(); // cut any ongoing AI response before the first preset line
+      speakFixed("Connecting you to a human agent. Please hold.");
+      setMode('speaking');
+    }, 2000);
 
-    // Step 2: TTS waiting queue progress
     setTimeout(function() {
       if (!state.handoffActive) return;
-      var waitText = "Still waiting in the queue. Your estimated wait time is about 30 seconds. Thank you for your patience.";
-      pushLocalEcho(waitText);
-      addBubble('ai', waitText);
-      sendInterrupt();
-      setTimeout(function() {
-        sendCustomToAgent({
-          type: 20000,
-          sender: state.userId,
-          receiver: [state.agentUserId],
-          payload: { id: uuid(), message: waitText, timestamp: Date.now() },
-        });
-      }, 120);
-    }, 4500);
+      speakFixed("You are now connected.");
+    }, 6000);
 
-    // Step 3: Simulate agent connection after 8 seconds
     setTimeout(function() {
       if (!state.handoffActive) return;
       stopQueueAnimation();
-
-      api('POST', '/api/v1/handoff/connect', { session_id: state.sessionId }).catch(function() {});
-
-      var connectText = "A human agent has joined the conversation. How can we help you today?";
-      // Register local echo so the agent's subtitle replay won't re-trigger talkToAgent
-      pushLocalEcho(connectText);
+      api('POST', '/api/v1/handoff/connect', { session_id: sid }).catch(function() {});
       addBubble('system', 'Agent connected');
-      addBubble('ai', connectText);
-      sendInterrupt();
-      setTimeout(function() {
-        sendCustomToAgent({
-          type: 20000,
-          sender: state.userId,
-          receiver: [state.agentUserId],
-          payload: { id: uuid(), message: connectText, timestamp: Date.now() },
-        });
-      }, 120);
-      setMode('speaking');
-      setTimeout(function() { setMode('idle'); }, 3000);
-
-      // Flow complete — return to normal conversation
-      state.handoffActive = false;
+      enterHumanAgentMode();
     }, 8000);
+
+    setTimeout(function() {
+      if (!state.handoffConnected) return;
+      api('POST', '/api/v1/agent/stop', { session_id: sid }).catch(function() {});
+    }, 10000);
   }
 
   function startQueueAnimation() {
@@ -744,7 +967,11 @@
     openDetailView();
 
     // Send product context to AI with full details (system-level injection — no user bubble)
-    var contextMsg = '[system] The customer is viewing product "' + p.name + '" (ID: ' + p.id + '), priced at $' + p.price + ', tagged as "' + p.tag + '". ' + desc + ' The customer wants to know more about this product. Please provide a helpful, detailed response including key features, price, and purchase recommendation. IMPORTANT: reply in plain text only, do NOT use markdown formatting (no asterisks, bold, headers or lists).';
+    var contextMsg = '[system] AUTHORITATIVE DATA from our catalog about a product the customer is currently viewing. ' +
+      'Product name: "' + p.name + '", product ID: ' + p.id + ', price: $' + p.price + ' USD, tag: "' + p.tag + '". ' + desc + ' ' +
+      'The customer wants to know more about this product. Answer directly, treating the data above as the single source of truth. ' +
+      'Do NOT say you cannot find the product, do NOT ask the customer to repeat the product ID, and do NOT transfer to a human agent. ' +
+      'Include key features, price and a brief purchase recommendation. Reply in plain spoken text only, with no markdown or special symbols.';
     sendInterrupt();
     setTimeout(function() {
       sendCustomToAgent({
@@ -784,11 +1011,14 @@
     openDetailView();
 
     // Send order context to AI with full details (system-level injection — no user bubble)
-    var contextMsg = '[system] The customer is viewing order #' + o.id + ', placed on ' + o.date + '. ' +
-      'Product: ' + p.name + ' (ID: ' + p.id + '), ' + o.qty + 'x at $' + p.price + ' each, order total $' + total + '. ' +
-      'Status: ' + o.status + '. The customer wants to inquire about this order. ' +
-      'Please provide a helpful response about the order status, shipping details, and any relevant next steps. ' +
-      'IMPORTANT: reply in plain text only, do NOT use markdown formatting (no asterisks, bold, headers or lists).';
+    var contextMsg = '[system] AUTHORITATIVE DATA from our order system about an order the customer is currently viewing. ' +
+      'Order number: ' + o.id + ', placed on ' + o.date + '. ' +
+      'Product: ' + p.name + ' (ID: ' + p.id + '), quantity ' + o.qty + ' at $' + p.price + ' each, order total $' + total + ' USD. ' +
+      'Current status: ' + o.status + '. ' +
+      'Answer the customer directly, treating the data above as the single source of truth. ' +
+      'Do NOT say the order cannot be found, do NOT ask the customer to repeat the order number, and do NOT transfer to a human agent. ' +
+      'When you mention the order number, read it digit by digit (for example "one one two two zero three three"), never as a whole number. ' +
+      'Provide the order status, shipping context and a relevant next step. Reply in plain spoken text only, with no markdown or special symbols.';
     sendInterrupt();
     setTimeout(function() {
       sendCustomToAgent({
@@ -836,6 +1066,42 @@
     t.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2600);
+  }
+
+  // =====================================================================
+  // Post-call rating card (issue 6)
+  // =====================================================================
+  function showRatingCard(sessionId) {
+    var overlay = $('rating-overlay');
+    if (!overlay) return;
+    state.ratingValue = 0;
+    var submit = $('rating-submit');
+    if (submit) submit.disabled = true;
+    var comment = $('rating-comment');
+    if (comment) comment.value = '';
+    Array.prototype.forEach.call(document.querySelectorAll('.star-btn'), function(b) {
+      b.classList.remove('lit');
+    });
+    overlay.hidden = false;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function hideRatingCard() {
+    var overlay = $('rating-overlay');
+    if (overlay) overlay.hidden = true;
+    state.lastSessionId = null;
+  }
+
+  function submitRating() {
+    var sid = state.lastSessionId;
+    var rating = state.ratingValue;
+    var commentEl = $('rating-comment');
+    var comment = commentEl ? commentEl.value : '';
+    if (!sid || !rating) return;
+    api('POST', '/api/v1/handoff/feedback', { session_id: sid, rating: rating, comment: comment })
+      .then(function() { addBubble('system', 'Thank you for your feedback!'); })
+      .catch(function(e) { console.warn('[feedback] error', e); });
+    hideRatingCard();
   }
 
   // =====================================================================
@@ -951,14 +1217,14 @@
     $('btn-start').addEventListener('click', function() { start(); });
     $('btn-mic').addEventListener('click', function() { toggleMute(); });
     $('btn-agent').addEventListener('click', function() { talkToAgent(); });
-    $('btn-hang').addEventListener('click', function() { hangup(); });
+    $('btn-hang').addEventListener('click', function() { requestHangup(); });
 
     // Detail view dock buttons
     $('btn-mic-detail').addEventListener('click', function() { toggleMute(); });
     $('btn-agent-detail').addEventListener('click', function() { talkToAgent(); });
     $('btn-hang-detail').addEventListener('click', function() {
-      hangup();
       closeDetailViewSilent();
+      requestHangup();
     });
 
     // Compact back button
@@ -982,6 +1248,21 @@
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') submit();
     });
+
+    // Rating card (issue 6)
+    Array.prototype.forEach.call(document.querySelectorAll('.star-btn'), function(btn) {
+      btn.addEventListener('click', function() {
+        var val = parseInt(btn.getAttribute('data-val'), 10) || 0;
+        state.ratingValue = val;
+        Array.prototype.forEach.call(document.querySelectorAll('.star-btn'), function(b) {
+          b.classList.toggle('lit', parseInt(b.getAttribute('data-val'), 10) <= val);
+        });
+        var submitBtn = $('rating-submit');
+        if (submitBtn) submitBtn.disabled = false;
+      });
+    });
+    $('rating-submit').addEventListener('click', function() { submitRating(); });
+    $('rating-skip').addEventListener('click', function() { hideRatingCard(); });
 
     // KB Tabs
     document.querySelectorAll('.kb-tab').forEach(function(t) {

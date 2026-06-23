@@ -38,6 +38,20 @@ class CancelBody(BaseModel):
     session_id: str = Field(..., max_length=64)
 
 
+class DetectBody(BaseModel):
+    """Body for handoff intent detection (reuses intent_detector pure function)."""
+
+    text: str = Field(..., max_length=4096)
+
+
+class FeedbackBody(BaseModel):
+    """Body for submitting a post-call satisfaction rating."""
+
+    session_id: str = Field(..., max_length=64)
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = Field(default="", max_length=1000)
+
+
 class AdminUpdateBody(BaseModel):
     status: str = Field(..., max_length=32)
     agent_id: Optional[str] = Field(default=None, max_length=64)
@@ -87,6 +101,44 @@ def cancel(body: CancelBody) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"code": 0, "data": ticket.to_legacy_dict()}
+
+
+# ---------------------------------------------------------------------------
+# Intent detection + satisfaction feedback (issue 6 / issue 7)
+# ---------------------------------------------------------------------------
+@router.post("/detect")
+def detect_handoff(body: DetectBody) -> dict:
+    """Pure intent detection: returns whether the text implies a handoff request.
+
+    Reuses core.intent_detector (same logic the backend uses internally), so the
+    frontend fast-path and the backend stay in sync.
+    """
+    from .core.intent_detector import is_handoff_intent
+
+    matched = bool(is_handoff_intent(body.text or ""))
+    return {"code": 0, "data": {"matched": matched, "text": body.text or ""}}
+
+
+@router.post("/feedback")
+def submit_feedback(body: FeedbackBody) -> dict:
+    """Persist a post-call CSAT rating and attach it to the session's ticket (if any)."""
+    result = get_default_service().submit_feedback(
+        body.session_id, body.rating, body.comment or ""
+    )
+    return {"code": 0, "data": result}
+
+
+@router.get("/feedback/{session_id}")
+def get_feedback(session_id: str) -> dict:
+    """Return the stored feedback for a session (404 if not yet rated)."""
+    from .feedback_store import get_feedback as _get
+
+    fb = _get(session_id)
+    if fb is None:
+        raise HTTPException(
+            status_code=404, detail=f"no feedback for session: {session_id}"
+        )
+    return {"code": 0, "data": {"session_id": session_id, "feedback": fb}}
 
 
 # ---------------------------------------------------------------------------

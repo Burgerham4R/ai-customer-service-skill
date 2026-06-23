@@ -215,26 +215,15 @@
         <dt>Updated</dt><dd>${escapeHtml(fmtTs(t.updated_at))}</dd>
         ${t.closed_at ? `<dt>Closed</dt><dd>${escapeHtml(fmtTs(t.closed_at))}</dd>` : ""}
       </dl>
-      <p class="drawer__placeholder" style="font-style:normal;">Description</p>
+      <p class="drawer__placeholder" style="font-style:normal;">Conversation summary</p>
       <div class="transcript">${escapeHtml(t.description || t.reason || "(none)")}</div>
       ${tx ? `
         <p class="transcript__title">Conversation transcript</p>
         <div class="transcript">${escapeHtml(tx)}</div>
       ` : ""}
-      <div class="summary-block" id="summary-block">
-        <p class="transcript__title">Session summary</p>
-        <div data-role="summary-body" class="summary-body">Loading…</div>
-      </div>
+      ${t.feedback ? renderFeedbackBlock(t.feedback) : ""}
       ${actions ? `<div class="action-row">${actions}</div>` : ""}
     `;
-
-    // Summary is auto-attached when the ticket is created (handoff → session-summary link).
-    // Prefer the embedded copy; fall back to fetching by session_id if absent.
-    if (t.session_summary) {
-      renderSummaryBody({ summary: t.session_summary, session_id: t.session_id || t.user_id });
-    } else {
-      loadSummary(t.session_id || t.user_id || t.ticket_id);
-    }
 
     Array.from(drawerBody.querySelectorAll("[data-detail-action]")).forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -245,66 +234,22 @@
     });
   }
 
-  /* ---------- 会话纪要（session-summary 能力，未安装则静默隐藏）---------- */
-  function renderSummaryBody(rec) {
-    const box = drawerBody.querySelector('[data-role="summary-body"]');
-    if (!box) return;
-    const s = rec && rec.summary;
-    if (!s) {
-      box.innerHTML = `
-        <p class="summary-empty">No summary yet.</p>
-        <button class="btn btn--accent btn--small" data-role="btn-finalize">Generate summary</button>`;
-      const btn = box.querySelector('[data-role="btn-finalize"]');
-      if (btn) btn.addEventListener("click", () => finalizeSummary(rec.session_id));
-      return;
-    }
-    const chips = (arr) => (arr && arr.length)
-      ? arr.map((x) => `<span class="summary-chip">${escapeHtml(x)}</span>`).join("")
-      : '<span class="summary-empty">—</span>';
-    const wb = rec.writeback;
-    box.innerHTML = `
-      <dl class="summary-grid">
-        <dt>Topics</dt><dd>${chips(s.topics)}</dd>
-        <dt>User intents</dt><dd>${chips(s.user_intents)}</dd>
-        <dt>Next actions</dt><dd>${chips(s.next_actions)}</dd>
-      </dl>
-      <p class="summary-meta">Engine: ${escapeHtml(s.engine || "-")}${s.model ? " · " + escapeHtml(s.model) : ""}${
-        wb ? " · writeback " + escapeHtml(wb.sink || "") + (wb.record_id ? " (" + escapeHtml(wb.record_id) + ")" : "") : ""
-      }</p>`;
-  }
-
-  async function loadSummary(sessionId) {
-    const box = drawerBody.querySelector('[data-role="summary-body"]');
-    if (!box || !sessionId) return;
-    try {
-      const resp = await fetch(`/api/v1/summary/${encodeURIComponent(sessionId)}`, { credentials: "same-origin" });
-      if (resp.status === 404) {
-        const blk = document.getElementById("summary-block");
-        if (blk) blk.hidden = true;     // this session has no summary record
-        return;
-      }
-      if (!resp.ok) { box.textContent = "Failed to load summary."; return; }
-      const body = await resp.json();
-      renderSummaryBody((body && body.data) || {});
-    } catch (e) {
-      // session-summary 能力未安装时 /api/v1/summary 不存在 → 隐藏整块
-      const blk = document.getElementById("summary-block");
-      if (blk) blk.hidden = true;
-    }
-  }
-
-  async function finalizeSummary(sessionId) {
-    if (!sessionId) return;
-    const box = drawerBody.querySelector('[data-role="summary-body"]');
-    if (box) box.innerHTML = '<p class="summary-empty">Generating…</p>';
-    try {
-      const body = await api(`/api/v1/summary/${encodeURIComponent(sessionId)}/finalize`, { method: "POST" });
-      renderSummaryBody((body && body.data) || {});
-      showToast("Session summary generated", "success");
-    } catch (err) {
-      showToast(`Failed to generate summary: ${err.message || err}`, "error");
-      if (box) box.innerHTML = '<p class="summary-empty">Generation failed.</p>';
-    }
+  /* ---------- Customer satisfaction feedback (issue 6) ---------- */
+  function renderFeedbackBlock(fb) {
+    const rating = Math.max(0, Math.min(5, parseInt(fb.rating, 10) || 0));
+    const stars = "\u2605".repeat(rating) + "\u2606".repeat(5 - rating);
+    const comment = fb.comment && String(fb.comment).trim();
+    return `
+      <div class="feedback-block">
+        <p class="transcript__title">Customer feedback</p>
+        <div class="feedback-body">
+          <div class="feedback-rating">
+            <span class="feedback-stars">${stars}</span>
+            <span class="feedback-score">${rating}/5</span>
+          </div>
+          <div class="feedback-comment${comment ? "" : " feedback-empty"}">${comment ? escapeHtml(comment) : "No written comment"}</div>
+        </div>
+      </div>`;
   }
 
   function openDrawer(ticketId) {

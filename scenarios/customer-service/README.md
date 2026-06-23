@@ -4,7 +4,7 @@
 
 This directory is the "ready-to-use" AI customer service demo for Path A — after the user says
 "Build me an AI customer service agent with TRTC", the Coding Agent follows the 6-step workflow
-in `SKILL.md §5` to install the `knowledge-base` + `human-handoff` capability packages, run
+in `SKILL.md §5` to install the `knowledge-base` + `human-handoff` + `session-summary` capability packages, run
 `post-install-patch.py`, overlay the UI, and serve the **Voice Agent UI** at `http://localhost:3000`.
 
 ---
@@ -15,7 +15,7 @@ in `SKILL.md §5` to install the `knowledge-base` + `human-handoff` capability p
 - **Silent RAG**: Frontend calls `/api/v1/kb/search` on every user message; hits are **not shown as cards**, instead absorbed naturally by the LLM (keeping the conversation stream clean)
 - **Handoff Queue Animation**: 8s progress bar + shimmer highlight + countdown; then calls `/handoff/connect` simulating `demo_agent_alex` pickup; polling for `state=connected` switches the badge
 - **Product / Order Business Panel**: Left sidebar, clicking a card auto-initiates an inquiry
-- **Design Compliant**: Dark + frosted glass + mint green accent + Lucide SVG icons + tokens.css; **zero emoji** in UI
+- **Design Compliant**: Light glassmorphism + purple-pink accent + Lucide SVG icons + tokens.css; **zero emoji** in UI
 - **English-only**: All UI copy / mock data / FAQ / keyword triggers are in English (targeting overseas developers)
 - **Top Bar LED hover tooltips**: Clear separation of Tencent Cloud (CAM/STS control plane) / TRTC (media data plane) / LLM (replaceable inference engine) responsibilities
 
@@ -37,9 +37,9 @@ scenarios/customer-service/
     │   ├── README.md
     │   ├── index.html                        ← Contains Lucide SVG icon defs + three-column layout
     │   ├── app.js                            ← TRTC pipeline + silent KB + HH progress bar + dedup
-    │   ├── styles.css                        ← Dark + frosted glass + tooltip + progress animation
+    │   ├── styles.css                        ← Light glassmorphism + tooltip + progress animation
     │   ├── mock-shop.json                    ← 3 products + 3 orders (English)
-    │   └── tokens.css                        ← Auto-generated; do not modify by hand
+    │   └── tokens.css                        ← Light glassmorphism design tokens (hand-aligned to the running theme)
     ├── widget-floating/                      ← Alternative: lightweight text IM floating widget (no TRTC voice)
     └── admin-board/                          ← Ticket agent dashboard (operations-side)
 ```
@@ -51,8 +51,8 @@ scenarios/customer-service/
 > Path A SOP is driven by `SKILL.md §5`; below is the **bare command version** (for local manual verification):
 
 ```bash
-# 1. Install KB + HH (default mock + local_queue adapter)
-python3 scripts/add-capability.py knowledge-base human-handoff --apply --json
+# 1. Install KB + HH + session-summary (default mock + local_queue adapters)
+python3 scripts/add-capability.py knowledge-base human-handoff session-summary --apply --json
 
 # 2. Post-install patch (fix legacy injection misalignment + write default .env capability config + validate server.py)
 python3 scripts/post-install-patch.py

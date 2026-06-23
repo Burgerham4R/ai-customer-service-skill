@@ -49,9 +49,12 @@ def _get_loader() -> Optional[Any]:
 
 
 def attach_summary_to_ticket(ticket: Any) -> None:
-    """Generate summary for the session corresponding to the ticket and write to ticket.extra['session_summary'].
+    """Generate an LLM narrative summary of the session chat and write it into the ticket's
+    Description field (from AI connect → handoff trigger).
 
-    session-summary not installed / any exception → silently skip (does not affect ticket creation main flow).
+    The ticket Description becomes an LLM summary of the conversation, so agents see the
+    context directly without a separate "Session Summary" block. session-summary not
+    installed / any exception → silently skip (does not affect ticket creation main flow).
     """
     loader = _get_loader()
     if loader is None:
@@ -65,11 +68,10 @@ def attach_summary_to_ticket(ticket: Any) -> None:
         recorder = recorder_mod.get_recorder()
         rec = recorder.get(session_id)
         if rec is None:
-            return  # No records for this session (e.g. manually inserted test ticket on dashboard), skip
-        # Ticket creation chain uses heuristic summary (local, zero latency) to avoid LLM calls blocking handoff;
-        # if agents need a more refined version, they can click "regenerate" on the dashboard to use LLM.
-        summary = summarizer_mod.summarize(rec, prefer_llm=False)
-        recorder.finalize(session_id, summary)
-        ticket.extra["session_summary"] = summary
+            return  # No transcript recorded for this session (e.g. manually inserted test ticket), skip
+        # LLM-generated one-paragraph summary of the chat → ticket Description.
+        paragraph = summarizer_mod.summarize_paragraph(rec)
+        if paragraph:
+            ticket.description = paragraph
     except Exception as exc:  # noqa: BLE001
-        logger.info("attach session summary skipped: %s", exc)
+        logger.info("attach description summary skipped: %s", exc)
