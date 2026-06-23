@@ -1,5 +1,5 @@
 ---
-name: ai-customer-service
+name: ai-custom-service-skill
 version: 1.2.0
 description: |
   Build AI customer service powered by Tencent Cloud TRTC Conversational AI (voice-first).
