@@ -6,7 +6,7 @@
 
 ## デモ
 
-https://github.com/user-attachments/assets/b303bbca-d82b-4d57-8722-4b56d26af9b8
+https://github.com/user-attachments/assets/a2e076ce-38c9-4bd8-a40a-e4e09d4ce360
 
 ## Tencent RTC について
 
