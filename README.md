@@ -102,10 +102,7 @@ git clone https://github.com/Burgerham4R/ai-customer-service-skill.git
 
 To get the customer service agent running, you need 3 cloud service credentials. Don't worry — they're just 3 strings you copy-paste from the corresponding websites.
 
-> **Why do I need a Tencent Cloud API Key?** You may have noticed that this Skill is promoted under the TRTC brand, yet during setup you'll also need a Tencent Cloud API Key. Don't worry — here's how they work together:
-> - **TRTC (trtc.io)** handles the real-time voice and media channel — the actual conversation between your customers and the AI agent
-> - **Tencent Cloud** provides the control plane behind the scenes — issuing temporary access tokens, managing permissions, and orchestrating services
-> - Your TRTC account and Tencent Cloud account are linked through a **unified login system** — register once, and your session syncs automatically
+> **How are TRTC and Tencent Cloud connected?** The TRTC Conversational AI service runs on Tencent Cloud. In simple terms: TRTC handles the voice calls between your customers and the AI agent, while Tencent Cloud handles the backend (permissions, service setup, billing, etc.). The two share the same login — register once and you're all set.
 
 | Key | Purpose | Where to find it |
 |-----|---------|-----------------|
