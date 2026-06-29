@@ -6,7 +6,7 @@
 
 ## Demo
 
-![Demo](assets/video/week1-demo-sm.gif)
+https://github.com/user-attachments/assets/e31804c1-f387-43cd-bc90-34c9a86afa7c
 
 ## What is this?
 
