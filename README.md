@@ -8,6 +8,14 @@
 
 https://github.com/user-attachments/assets/b303bbca-d82b-4d57-8722-4b56d26af9b8
 
+## About Tencent RTC
+
+[Tencent RTC](https://trtc.io) (Real-Time Communication) is Tencent Cloud's international brand for real-time audio and video services. Trusted by thousands of businesses worldwide, TRTC powers ultra-low-latency voice, video, and conversational AI experiences at scale — with a global edge network that delivers sub-300ms latency across 200+ countries and regions.
+
+The **Conversational AI** capability enables developers to build voice agents that can listen, understand, and respond naturally — perfect for customer service, sales assistance, and intelligent self-service scenarios.
+
+> 🎁 **Free Trial**: Sign up at [trtc.io](https://trtc.io) with **no credit card required** and get **10,000 free minutes** every month to try out Conversational AI. Start building immediately — no commitment, no hidden costs.
+
 ## What is this?
 
 Building an "AI customer service agent with TRTC Conversational AI" packaged into a plug-and-play Skill:
@@ -98,7 +106,7 @@ To get the customer service agent running, you need 3 cloud service credentials.
 
 | Key | Purpose | Where to find it |
 |-----|---------|-----------------|
-| Key 1: TRTC Application Credentials | Lets the agent make calls and do voice chat | https://console.trtc.io/ (register & create a Conversational AI app) |
+| Key 1: TRTC Application Credentials | Lets the agent make calls and do voice chat | https://console.trtc.io/ (register & create an **RTC Engine** app — supports Conversational AI) |
 | Key 2: Tencent Cloud API Key | Proves you have permission to use Tencent Cloud voice & calling services (login syncs with your TRTC account) | https://console.tencentcloud.com/cam/capi |
 | Key 3: LLM API Key | Lets the agent "think" — understand queries and respond | Your registered AI service website (e.g. OpenAI, DeepSeek, etc.) |
 
@@ -197,3 +205,7 @@ ai-service-skill/
 ---
 
 > **One last thing**: This Skill is designed so that anyone — even with zero coding experience — can get an AI customer service agent up and running. If you run into any issues along the way, just tell the AI in the chat window and it'll help you resolve them.
+
+## Contact Us
+
+Need technical support or enterprise pricing? Visit [trtc.io/contact](https://trtc.io/contact) and our team will get back to you.

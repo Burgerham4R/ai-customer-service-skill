@@ -207,6 +207,8 @@ Environment check passed! Now let's make a choice — how would you like to get 
 
 To get the customer service agent running, you'll need to configure 3 keys — they're the access passes for cloud services. Don't worry, I'll walk you through each one.
 
+We'll go in this order: **first** register and create the voice agent on the TRTC standalone site (this is the "core"), **then** get the Tencent Cloud API Key (this is the "control plane" that issues temporary credentials), **last** the LLM API Key (this is the "brain").
+
 ---
 
 ### 5.1 Configuration Methods
@@ -229,16 +231,16 @@ Send each key's value through the chat, and I'll write them into the `.env` file
 # Copy the entire block into your .env file and replace the values on the right side of the equals sign
 # ==========================================
 
-# --- Key 1: Tencent Cloud API Credentials ---
-# Get them here: https://console.tencentcloud.com/cam/capi
-TENCENT_CLOUD_SECRET_ID=yourSecretId
-TENCENT_CLOUD_SECRET_KEY=yourSecretKey
-
-# --- Key 2: TRTC Application Credentials ---
-# Get them here: https://console.trtc.io/app
+# --- Key 1: TRTC Application Credentials ---
+# Get them here: https://console.trtc.io/ (register & create an RTC Engine application — supports Conversational AI)
 # (China-region accounts use: https://console.cloud.tencent.com/trtc)
 TRTC_SDK_APP_ID=yourSDKAppID (e.g., 1400000000)
 TRTC_SDK_SECRET_KEY=yourSDKSecretKey (64-character string)
+
+# --- Key 2: Tencent Cloud API Credentials ---
+# Get them here: https://console.tencentcloud.com/cam/capi (your TRTC login session syncs automatically)
+TENCENT_CLOUD_SECRET_ID=yourSecretId
+TENCENT_CLOUD_SECRET_KEY=yourSecretKey
 
 # --- Key 3: LLM API Key ---
 # Enter the API Key for the AI language model service you're using
@@ -251,45 +253,15 @@ LLM_MODEL_NAME=yourModelName (e.g., gpt-4o / deepseek-chat / claude-3-opus)
 
 ### 5.3 Key-by-Key Collection Process
 
-#### Key 1: Tencent Cloud API Credentials (SecretId / SecretKey)
+#### Key 1: TRTC Application Credentials (SDKAppID / SDKSecretKey)
 
 **The AI should say**:
-> Let's start with Key 1 — Tencent Cloud API Credentials. This key proves you have permission to use TRTC's voice and calling services.
+> Let's start with Key 1 — TRTC Application Credentials. This is the foundation of the whole system: the application that powers the voice channel — it lets the customer service agent make voice calls and chat with voice.
 >
-> A quick note: Tencent RTC (trtc.io) is Tencent Cloud's international RTC brand. Your TRTC account and Tencent Cloud account are connected — you'll use a unified login.
->
-> To get it:
-> 1. If you haven't signed up yet, go to https://trtc.io and create a TRTC account first
-> 2. After logging in, open: https://console.tencentcloud.com/cam/capi (your login session will sync automatically)
-> 3. You'll see a page called "API Key Management." There will be a **SecretId** and a **SecretKey** (you may need to click "Show" to see the full content)
->
-> Fill the two values into the code block below. Make sure to replace the placeholder text (`yourSecretId` and `yourSecretKey`), then **copy and send the entire block to me**:
->
-> ```
-> # My Tencent Cloud API credentials
-> TENCENT_CLOUD_SECRET_ID=yourSecretId
-> TENCENT_CLOUD_SECRET_KEY=yourSecretKey
-> ```
-
-**After the user replies with the code block**, the AI must parse the values on the right side of the equals sign:
-1. Validate format: SecretId is typically 36 characters, `^[A-Za-z0-9]+$`; SecretKey is not empty
-2. Tool: `write_to_file("$SKILL_ROOT/capabilities/conversation-core/.env", <write TENCENT_CLOUD_SECRET_ID=... + TENCENT_CLOUD_SECRET_KEY=... + TENCENT_CLOUD_REGION=ap-guangzhou>)`
-3. Do not echo the full key; only confirm "Received — length/format OK"
-4. Tool: `execute_command("cd \"$SKILL_ROOT\" && python3 scripts/verify-credentials.py --type tencent")`
-5. Parse stdout JSON:
-   - `{"ok": true, ...}` → Tell the user "Key 1 verified successfully" and proceed to Key 2
-   - `{"ok": false, "error": "E001"}` → Respond per the §5.5 error code table; ask the user to retry
-   - `{"ok": false, "error": "E000"}` → Check if some value in the user's code block is still a Chinese placeholder; if so, prompt "I noticed a value still looks like a placeholder — please send the complete code block again with all values filled in"
-
-#### Key 2: TRTC Application Credentials (SDKAppID / SDKSecretKey)
-
-**The AI should say**:
-> All set! Now Key 2 — TRTC Application Credentials. This key lets the customer service agent make voice calls and chat with voice.
->
-> To get it:
-> 1. Open this page: https://console.trtc.io/app (If you're using a Tencent Cloud China-region account, use: https://console.cloud.tencent.com/trtc)
-> 2. Find the "Conversational AI" application you previously created (create a new one if you don't have one yet)
-> 3. Once inside the application, you'll need to find two pieces of information:
+> To get it, we'll go to the **TRTC standalone site** (Tencent RTC's international site) and create an RTC Engine application (supports Conversational AI) there:
+> 1. Open this page: https://console.trtc.io/ and register an account / log in (China-region accounts can use https://console.cloud.tencent.com/trtc instead)
+> 2. After logging in, create an **RTC Engine** application (supports Conversational AI — this is the voice agent you'll be using)
+> 3. Once the application is created, you'll find two pieces of information inside it:
 >    - **SDKAppID**: a string of numbers
 >    - **SDKSecretKey**: a long string of mixed letters and numbers (found in the "Server-side Integration" section)
 > 4. ⚠️ Important: There may also be something called STSecretKey on the page — that one is for the client side. We don't want that. We need the **SDKSecretKey** (the server-side one)
@@ -305,9 +277,51 @@ LLM_MODEL_NAME=yourModelName (e.g., gpt-4o / deepseek-chat / claude-3-opus)
 **After the user replies with the code block**, the AI must parse the values on the right side of the equals sign:
 1. Validate: SDKAppID is an integer; SDKSecretKey must be 64 characters `[0-9a-f]`
    (**Special case**: if 128 characters detected and the first 64 equal the last 64 → auto-truncate to first 64 and inform the user)
-2. Tool: `write_to_file` append `TRTC_SDK_APP_ID=` + `TRTC_SDK_SECRET_KEY=` (default international site; do not write TRTC_REGION)
-3. Tool: `execute_command("cd \"$SKILL_ROOT\" && python3 scripts/verify-credentials.py --type trtc")`
-4. Parse stdout JSON as above (on failure, respond per §5.5 error code table; if value is still a placeholder, prompt to resend)
+2. Tool: `write_to_file("$SKILL_ROOT/capabilities/conversation-core/.env", <write TRTC_SDK_APP_ID=... + TRTC_SDK_SECRET_KEY=...>)` (default international site; do not write TRTC_REGION)
+3. Do not echo the full key; only confirm "Received — length/format OK"
+4. Tool: `execute_command("cd \"$SKILL_ROOT\" && python3 scripts/verify-credentials.py --type trtc")`
+   > Note: At this point Tencent Cloud credentials are not yet configured, so the TRTC check runs in **local UserSig self-consistency mode** (no deep ownership check). The deep ownership check runs automatically after Key 2 (Tencent Cloud) is configured — see the re-verification step at the end of Key 2.
+5. Parse stdout JSON:
+   - `{"ok": true, ...}` → Tell the user "Key 1 verified successfully" and proceed to Key 2
+   - `{"ok": false, "error": "E002"}` → Respond per the §5.5 error code table; ask the user to retry
+   - `{"ok": false, "error": "E000"}` → Check if some value in the user's code block is still a placeholder; if so, prompt "I noticed a value still looks like a placeholder — please send the complete code block again with all values filled in"
+
+#### Key 2: Tencent Cloud API Credentials (SecretId / SecretKey)
+
+**The AI should say**:
+> All set! Now Key 2 — Tencent Cloud API Credentials.
+>
+> **Why do we need this?** A quick note on the relationship between TRTC and Tencent Cloud:
+> Tencent RTC (trtc.io) is Tencent Cloud's international Real-Time Communication brand. The TRTC Conversational AI service runs on top of Tencent Cloud's infrastructure. The **voice / media channel** is handled by TRTC (which you just configured in Key 1), but the **control plane** — issuing temporary credentials (STS), permission management (CAM), and billing — runs on Tencent Cloud. So we need a Tencent Cloud API Key to let the agent obtain short-lived access tokens securely.
+>
+> The good news: your TRTC account and Tencent Cloud account are connected through a unified login system. **You don't need to register again** — after registering on the TRTC standalone site in Key 1, your login state syncs automatically.
+>
+> To get it:
+> 1. Open this page: https://console.tencentcloud.com/cam/capi (your TRTC login session will sync automatically — no separate signup needed)
+> 2. You'll see a page called "API Key Management." There will be a **SecretId** and a **SecretKey** (you may need to click "Show" to see the full content)
+>
+> Fill the two values into the code block below. Make sure to replace the placeholder text (`yourSecretId` and `yourSecretKey`), then **copy and send the entire block to me**:
+>
+> ```
+> # My Tencent Cloud API credentials
+> TENCENT_CLOUD_SECRET_ID=yourSecretId
+> TENCENT_CLOUD_SECRET_KEY=yourSecretKey
+> ```
+
+**After the user replies with the code block**, the AI must parse the values on the right side of the equals sign:
+1. Validate format: SecretId is typically 36 characters, `^[A-Za-z0-9]+$`; SecretKey is not empty
+2. Tool: `write_to_file` **append** `TENCENT_CLOUD_SECRET_ID=...` + `TENCENT_CLOUD_SECRET_KEY=...` + `TENCENT_CLOUD_REGION=ap-guangzhou` to the existing `.env` (do NOT overwrite Key 1's TRTC values)
+3. Do not echo the full key; only confirm "Received — length/format OK"
+4. Tool: `execute_command("cd \"$SKILL_ROOT\" && python3 scripts/verify-credentials.py --type tencent")`
+5. Parse stdout JSON:
+   - `{"ok": true, ...}` → Tell the user "Key 2 verified successfully"
+   - `{"ok": false, "error": "E001"}` → Respond per the §5.5 error code table; ask the user to retry
+   - `{"ok": false, "error": "E000"}` → Check if some value in the user's code block is still a placeholder; if so, prompt "I noticed a value still looks like a placeholder — please send the complete code block again with all values filled in"
+6. **Re-verify TRTC deep ownership check** (now that Tencent Cloud creds are available, do a full ownership check on Key 1):
+   - Tool: `execute_command("cd \"$SKILL_ROOT\" && python3 scripts/verify-credentials.py --type trtc")`
+   - `{"ok": true, ...}` → Tell the user "TRTC deep ownership check also passed" and proceed to Key 3
+   - `{"ok": false, "error": "E002"}` → Respond per §5.5 (e.g., SDKAppID may not belong to this account, or SDKSecretKey / STSecretKey mix-up); ask the user to go back and recheck Key 1's values
+   - If value is still a placeholder, prompt to resend
 
 #### Key 3: LLM API Key
 

@@ -8,6 +8,14 @@
 
 https://github.com/user-attachments/assets/b303bbca-d82b-4d57-8722-4b56d26af9b8
 
+## Tencent RTC について
+
+[Tencent RTC](https://trtc.io)（リアルタイムコミュニケーション）は、Tencent Cloud の国際的なリアルタイム音声・動画サービスブランドです。世界中の数千の企業に信頼され、TRTC は 200 以上の国と地域をカバーするグローバルエッジネットワークを通じて、300ms 未満の超低遅延の音声、動画、会話型 AI 体験を大規模に提供しています。
+
+**Conversational AI** 機能により、開発者は自然に聞き、理解し、応答できる音声エージェントを構築できます — カスタマーサービス、営業支援、インテリジェントなセルフサービスシナリオに最適です。
+
+> 🎁 **無料トライアル**：[trtc.io](https://trtc.io) でサインアップすれば、**クレジットカード不要**で毎月 **10,000 分の無料枠** が付与され、Conversational AI をお試しいただけます。契約や隠れたコストは一切ありません。
+
 ## これは何？
 
 「TRTC Conversational AI による AI カスタマーサービスエージェント」をプラグアンドプレイの Skill としてパッケージ化しました：
@@ -98,7 +106,7 @@ git clone https://github.com/Burgerham4R/ai-customer-service-skill.git
 
 | キー | 目的 | 入手先 |
 |-----|---------|-----------------|
-| キー 1：TRTC アプリケーション認証情報 | エージェントが通話や音声チャットを実行可能にします | https://console.trtc.io/（登録して Conversational AI アプリを作成） |
+| キー 1：TRTC アプリケーション認証情報 | エージェントが通話や音声チャットを実行可能にします | https://console.trtc.io/（登録して **RTC Engine** アプリを作成 — Conversational AI 対応） |
 | キー 2：Tencent Cloud API キー | Tencent Cloud 音声・通話サービスを使用する権限を証明します（TRTC アカウントとログインが同期されます） | https://console.tencentcloud.com/cam/capi |
 | キー 3：LLM API キー | エージェントが「考え」— 問い合わせを理解して応答できるようにします | 登録している AI サービス Web サイト（OpenAI、DeepSeek など） |
 
@@ -197,3 +205,7 @@ ai-service-skill/
 ---
 
 > **最後に**：この Skill は、プログラミング経験がまったくない人でも AI カスタマーサービスエージェントを立ち上げられるように設計されています。途中で問題が発生した場合は、チャットウィンドウで AI に伝えるだけで解決をお手伝いします。
+
+## お問い合わせ
+
+技術サポートやエンタープライズ向けプランについてのお問い合わせは、[trtc.io/contact](https://trtc.io/contact) までお気軽にご連絡ください。

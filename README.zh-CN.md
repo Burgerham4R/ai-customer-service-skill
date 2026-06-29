@@ -8,6 +8,14 @@
 
 https://github.com/user-attachments/assets/b303bbca-d82b-4d57-8722-4b56d26af9b8
 
+## 关于 Tencent RTC
+
+[Tencent RTC](https://trtc.io)（实时音视频）是腾讯云旗下的国际实时音视频通信品牌，服务全球数千家企业。TRTC 依托覆盖 200+ 国家和地区的全球边缘网络，提供低于 300ms 的超低延迟语音、视频和对话式 AI 体验。
+
+**Conversational AI** 能力让开发者可以构建能够聆听、理解并自然回应的语音智能体——非常适合客服、销售辅助和智能自助服务场景。
+
+> 🎁 **免费试用**：在 [trtc.io](https://trtc.io) 注册，**无需绑定信用卡**，每月即享 **10,000 分钟免费时长**体验 Conversational AI。立即开始搭建，无任何门槛或隐藏费用。
+
 ## 这是什么？
 
 将"基于 TRTC Conversational AI 的 AI 客服智能体"打包成一个即插即用的 Skill：
@@ -96,7 +104,7 @@ git clone https://github.com/Burgerham4R/ai-customer-service-skill.git
 
 | 密钥 | 用途 | 获取地址 |
 |------|------|---------|
-| 密钥 1：TRTC 应用凭证 | 让智能体能够拨打电话和进行语音聊天 | https://console.trtc.io/（注册并创建 Conversational AI 应用） |
+| 密钥 1：TRTC 应用凭证 | 让智能体能够拨打电话和进行语音聊天 | https://console.trtc.io/（注册并创建 **RTC Engine** 应用，支持 Conversational AI） |
 | 密钥 2：Tencent Cloud API Key | 证明你有权限使用 TRTC 语音和通话服务（登录态与 TRTC 账号自动同步） | https://console.tencentcloud.com/cam/capi |
 | 密钥 3：LLM API Key | 让智能体能够"思考"——理解用户问题并回复 | 你注册的 AI 服务网站（如 OpenAI、DeepSeek 等） |
 
@@ -195,3 +203,7 @@ ai-service-skill/
 ---
 
 > **最后再说一句**：本 Skill 的设计目标是让任何人——即使完全不会编程——都能搭起一个 AI 客服智能体。如果在过程中遇到任何问题，直接在聊天窗口中告诉 AI，它会帮你解决。
+
+## 联系我们
+
+需要技术支持或企业定制优惠？访问 [trtc.io/contact](https://trtc.io/contact)，我们的团队将尽快与您联系。
