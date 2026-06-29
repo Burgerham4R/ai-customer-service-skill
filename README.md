@@ -1,6 +1,6 @@
 # TRTC AI Customer Service Skill
 
-[English](README.md) | [中文](README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md) | [日本語](README.ja.md)
 
 > A zero-code AI customer service builder. Just say a sentence in the chat window and the AI will guide you step by step to get your customer service system up and running — no terminal, no scripts, no coding required.
 

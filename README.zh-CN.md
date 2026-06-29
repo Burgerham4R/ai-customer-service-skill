@@ -1,6 +1,6 @@
 # TRTC AI 客服 Skill
 
-[English](README.md) | [中文](README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md) | [日本語](README.ja.md)
 
 > 零代码 AI 客服搭建器。只需在聊天窗口中说一句话，AI 会一步步引导你完成客服系统的搭建——无需终端、无需脚本、无需编程。
 
