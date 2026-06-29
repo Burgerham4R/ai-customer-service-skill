@@ -10,7 +10,7 @@ https://github.com/user-attachments/assets/b303bbca-d82b-4d57-8722-4b56d26af9b8
 
 ## About Tencent RTC
 
-[Tencent RTC](https://trtc.io) (Real-Time Communication) is Tencent Cloud's international brand for real-time audio and video services. Trusted by thousands of businesses worldwide, TRTC powers ultra-low-latency voice, video, and conversational AI experiences at scale — with a global edge network that delivers sub-300ms latency across 200+ countries and regions.
+[Tencent RTC](https://trtc.io) (Real-Time Communication) powers real-time audio, video, and conversational AI experiences for thousands of businesses worldwide. With a global edge network spanning 200+ countries and regions, TRTC delivers sub-300ms ultra-low latency at scale.
 
 The **Conversational AI** capability enables developers to build voice agents that can listen, understand, and respond naturally — perfect for customer service, sales assistance, and intelligent self-service scenarios.
 
@@ -102,7 +102,10 @@ git clone https://github.com/Burgerham4R/ai-customer-service-skill.git
 
 To get the customer service agent running, you need 3 cloud service credentials. Don't worry — they're just 3 strings you copy-paste from the corresponding websites.
 
-> **Tencent RTC (trtc.io)** is Tencent Cloud's international Real-Time Communication brand. The TRTC Conversational AI service runs on Tencent Cloud infrastructure — your TRTC account and Tencent Cloud account are linked through a unified login system. When you get your API Key, the system will automatically sync your login session.
+> **Why do I need a Tencent Cloud API Key?** You may have noticed that this Skill is promoted under the TRTC brand, yet during setup you'll also need a Tencent Cloud API Key. Don't worry — here's how they work together:
+> - **TRTC (trtc.io)** handles the real-time voice and media channel — the actual conversation between your customers and the AI agent
+> - **Tencent Cloud** provides the control plane behind the scenes — issuing temporary access tokens, managing permissions, and orchestrating services
+> - Your TRTC account and Tencent Cloud account are linked through a **unified login system** — register once, and your session syncs automatically
 
 | Key | Purpose | Where to find it |
 |-----|---------|-----------------|
