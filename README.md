@@ -4,6 +4,10 @@
 
 > A zero-code AI customer service builder. Just say a sentence in the chat window and the AI will guide you step by step to get your customer service system up and running — no terminal, no scripts, no coding required.
 
+## Demo
+
+![Demo](assets/video/week1-demo-sm.gif)
+
 ## What is this?
 
 Building an "AI customer service agent with TRTC Conversational AI" packaged into a plug-and-play Skill:
@@ -94,8 +98,8 @@ To get the customer service agent running, you need 3 cloud service credentials.
 
 | Key | Purpose | Where to find it |
 |-----|---------|-----------------|
-| Key 1: Tencent Cloud API Key | Proves you have permission to use Tencent Cloud voice & calling services | https://console.tencentcloud.com/cam/capi |
-| Key 2: TRTC Application Credentials | Lets the agent make calls and do voice chat | https://console.trtc.io/app |
+| Key 1: TRTC Application Credentials | Lets the agent make calls and do voice chat | https://console.trtc.io/ (register & create a Conversational AI app) |
+| Key 2: Tencent Cloud API Key | Proves you have permission to use Tencent Cloud voice & calling services (login syncs with your TRTC account) | https://console.tencentcloud.com/cam/capi |
 | Key 3: LLM API Key | Lets the agent "think" — understand queries and respond | Your registered AI service website (e.g. OpenAI, DeepSeek, etc.) |
 
 > The AI will tell you exactly how to get each key step by step. Your key info is only used for this configuration session — the system does not log or leak it.

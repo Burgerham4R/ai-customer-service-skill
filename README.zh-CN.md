@@ -4,6 +4,10 @@
 
 > 零代码 AI 客服搭建器。只需在聊天窗口中说一句话，AI 会一步步引导你完成客服系统的搭建——无需终端、无需脚本、无需编程。
 
+## 演示
+
+![Demo](assets/video/week1-demo-sm.gif)
+
 ## 这是什么？
 
 将"基于 TRTC Conversational AI 的 AI 客服智能体"打包成一个即插即用的 Skill：
@@ -92,8 +96,8 @@ git clone https://github.com/Burgerham4R/ai-customer-service-skill.git
 
 | 密钥 | 用途 | 获取地址 |
 |------|------|---------|
-| 密钥 1：Tencent Cloud API Key | 证明你有权限使用 TRTC 语音和通话服务 | https://console.tencentcloud.com/cam/capi |
-| 密钥 2：TRTC 应用凭证 | 让智能体能够拨打电话和进行语音聊天 | https://console.trtc.io/app |
+| 密钥 1：TRTC 应用凭证 | 让智能体能够拨打电话和进行语音聊天 | https://console.trtc.io/（注册并创建 Conversational AI 应用） |
+| 密钥 2：Tencent Cloud API Key | 证明你有权限使用 TRTC 语音和通话服务（登录态与 TRTC 账号自动同步） | https://console.tencentcloud.com/cam/capi |
 | 密钥 3：LLM API Key | 让智能体能够"思考"——理解用户问题并回复 | 你注册的 AI 服务网站（如 OpenAI、DeepSeek 等） |
 
 > AI 会一步步详细告诉你如何获取每个密钥。你的密钥信息仅用于本次配置会话——系统不会记录或泄露。

@@ -20,3 +20,7 @@ node_modules/
 .idea/
 .vscode/
 .DS_Store
+
+# Large media files (keep source locally, use compressed versions in repo)
+*.mov
+*.mp4
